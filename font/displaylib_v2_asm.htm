@@ -1,0 +1,777 @@
+<html>
+    <head>
+        <script src="patterns_asm.js"></script>
+    </head>
+    <body>
+
+        <button id="nextBtn">next</button>
+        <button id="prevBtn">prev</button>
+        <button id="buildBtn">build</button>
+        <label id="current">0</label>        
+        <label id="charDisp">A</label>
+        <canvas id="canvas" width="160" height="160" style="border:1px solid #d3d3d3;"></canvas>
+        <textarea id="textOutput"></textarea>
+
+
+
+<script>
+let canvas = document.getElementById("canvas");
+let ctx = canvas.getContext("2d");
+let textOutput = document.getElementById("textOutput");
+let nextBtn = document.getElementById("nextBtn");
+let prevBtn = document.getElementById("prevBtn");
+let buildBtn = document.getElementById("buildBtn");
+let currentLabel = document.getElementById("current");
+let rectsOnly = false;
+let charWidth = 5;
+let charHeight = 7;
+let charPixelRows = 7;
+let charPixelCols = 5;
+let displayCols = 29;
+let charPixelWidth = Math.round(charWidth / charPixelCols);
+let charPixelHeight = Math.round(charHeight / charPixelRows);
+
+ctx.scale(canvas.width / charWidth, canvas.height / charHeight);
+
+let storedChars = {};
+let currentChar = 32;
+
+
+
+
+
+
+
+
+
+
+function render(grid) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    //scale all drawings to fit canvas
+    //draw grid cell outlines
+    ctx.strokeStyle = "rgba(0,0,0,0.3)";
+    ctx.lineWidth = 0.1;
+    for (let i = 0; i < charPixelRows; i++) {
+        for (let j = 0; j < charPixelCols; j++) {
+            ctx.strokeRect(j * charPixelWidth, i * charPixelHeight, charPixelWidth, charPixelHeight);
+        }
+    }
+    //draw pixels
+    ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+    for (let i = 0; i < charPixelRows; i++) {
+        if(grid[i]==undefined){
+            grid[i]=Array(charWidth);
+        }
+        for (let j = 0; j < charPixelCols; j++) {
+            if (grid[i][j] == 1) {
+                ctx.beginPath();
+                ctx.rect(j * charPixelWidth, i * charPixelHeight, charPixelWidth, charPixelHeight);
+                ctx.fill();
+            }
+        }
+    }
+    let drawInstructions = findPatterns(grid);
+    //call drawPreview function for each pattern
+    for (let i = 0; i < drawInstructions.length; i++) {
+        drawInstructions[i].pattern.drawPreview(canvas,drawInstructions[i].x, drawInstructions[i].y);
+    }
+}
+
+function getRectangles(grid) {
+    grid = JSON.parse(JSON.stringify(grid));
+    let outlineRects = [];
+    
+    if(!rectsOnly){
+        let enclosedRects = [];
+        let checkMatrixList = [
+            [
+                [1,1,1],
+                [1,0,1],
+                [1,1,1]
+            ],
+            [
+                [1,1,1,1],
+                [1,0,0,1],
+                [1,0,0,1],
+                [1,1,1,1]
+            ],
+            [
+                [0,1,1,1],
+                [1,1,0,0],
+                [1,1,1,1],
+                [0,1,0,1]
+            ]
+        ];
+
+
+        for(let i = 0; i < charPixelRows; i++){
+            for(let j = 0; j < charPixelCols; j++){
+                    //correlate checkMatrix to grid without violating bounds
+                    for(let k = 0; k < checkMatrixList.length; k++){
+                        let checkMatrix = checkMatrixList[k];
+                        let checkMatrixRows = checkMatrix.length;
+                        let checkMatrixCols = checkMatrix[0].length;
+                        let checkMatrixCenterRow = Math.floor(checkMatrixRows / 2);
+                        let checkMatrixCenterCol = Math.floor(checkMatrixCols / 2);
+                        let checkMatrixTopLeftRow = i - checkMatrixCenterRow;
+                        let checkMatrixTopLeftCol = j - checkMatrixCenterCol;
+                        let checkMatrixBottomRightRow = checkMatrixTopLeftRow + checkMatrixRows - 1;
+                        let checkMatrixBottomRightCol = checkMatrixTopLeftCol + checkMatrixCols - 1;
+                        if(checkMatrixTopLeftRow >= 0 && checkMatrixTopLeftCol >= 0 && checkMatrixBottomRightRow < charPixelRows && checkMatrixBottomRightCol < charPixelCols){
+                            let checkMatrixMatch = true;
+                            for(let l = 0; l < checkMatrixRows; l++){
+                                for(let m = 0; m < checkMatrixCols; m++){
+                                    if(checkMatrix[l][m] == 1 && grid[checkMatrixTopLeftRow + l][checkMatrixTopLeftCol + m] == 0){
+                                        checkMatrixMatch = false;
+                                        break;
+                                    }
+                                }
+                                if(!checkMatrixMatch){
+                                    break;
+                                }
+                            }
+                            if(checkMatrixMatch){
+                                //mark grid with checkMatrix
+                                for(let l = 0; l < checkMatrixRows; l++){
+                                    for(let m = 0; m < checkMatrixCols; m++){
+                                        if(checkMatrix[l][m] == 1){
+                                            grid[checkMatrixTopLeftRow + l][checkMatrixTopLeftCol + m] = 2;
+                                        }
+                                    }
+                                }
+                                //add rectangle to enclosedRects
+                                outlineRects.push({
+                                    x: checkMatrixTopLeftCol,
+                                    y: checkMatrixTopLeftRow,
+                                    w: checkMatrixCols,
+                                    h: checkMatrixRows,
+                                    outline:true
+                                });
+                                //set grid to 0 where checkMatrix was
+                                for(let l = 0; l < checkMatrixRows; l++){
+                                    for(let m = 0; m < checkMatrixCols; m++){
+                                        if(checkMatrix[l][m] == 1){
+                                            grid[checkMatrixTopLeftRow + l][checkMatrixTopLeftCol + m] = 0;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+        }
+
+
+  
+
+
+    }
+
+
+    let rects = [];
+    let isLine = false;
+    let currentRect = {};
+    for(let i = 0; i < charPixelRows; i++) {
+        for(let j = 0; j < charPixelCols; j++) {
+            if(grid[i][j] == 1) {
+                if(!isLine) {
+                    isLine = true;
+                    currentRect = {x: j, y: i, w: 1, h: 1};
+                } else {
+                    currentRect.w++;
+                }
+            } else {
+                if(isLine) {
+                    isLine = false;
+                    rects.push(currentRect);
+                }
+            }
+            //if the next pixel is out of bounds, end the line
+            if(j == charPixelCols - 1 && isLine) {
+                isLine = false;
+                rects.push(currentRect);
+            }
+
+        }
+    }
+
+    //repeat for vertical lines
+    isLine = false;
+    for(let i = 0; i < charPixelCols; i++) {
+        for(let j = 0; j < charPixelRows; j++) {
+            if(grid[j][i] == 1) {
+                if(!isLine) {
+                    isLine = true;
+                    currentRect = {x: i, y: j, w: 1, h: 1};
+                } else {
+                    currentRect.h++;
+                }
+            } else {
+                if(isLine) {
+                    isLine = false;
+                    rects.push(currentRect);
+                }
+            }
+            //if the next pixel is out of bounds, end the line
+            if(j == charPixelRows - 1 && isLine) {
+                isLine = false;
+                rects.push(currentRect);
+            }
+        }
+    }
+
+
+
+
+
+    //find 2x2 rectangles in grid
+    for(let i = 0; i < charPixelRows - 1; i++) {
+        for(let j = 0; j < charPixelCols - 1; j++) {
+            if(grid[i][j] == 1 && grid[i][j + 1] == 1 && grid[i + 1][j] == 1 && grid[i + 1][j + 1] == 1) {
+                rects.push({x: j, y: i, w: 2, h: 2});
+            }
+        }
+    }
+    //remove rectangles that go outside of grid
+    for(let i = rects.length - 1; i >= 0; i--) {
+        if(rects[i].x + rects[i].w > charPixelCols || rects[i].y + rects[i].h > charPixelRows) {
+            rects.splice(i, 1);
+        }
+    }
+
+    //check for overlapping rectangles, remove the smaller one
+    for(let i = 0; i < rects.length; i++) {
+        for(let j = 0; j < rects.length; j++) {
+            if(i != j) {
+                if(rects[i].x >= rects[j].x && rects[i].x + rects[i].w <= rects[j].x + rects[j].w && rects[i].y >= rects[j].y && rects[i].y + rects[i].h <= rects[j].y + rects[j].h) {
+                    rects.splice(i, 1);
+                    i--;
+                    break;
+                }
+            }
+        }
+    }
+    if(rectsOnly){return {rects: rects, lines: []};};
+
+    let singleRects = rects.filter(rect => rect.w == 1 && rect.h == 1);
+    let lines = [];
+    let singleRectGrid = [];
+    for(let i = 0; i < charPixelRows; i++) {
+        singleRectGrid[i] = [];
+        for(let j = 0; j < charPixelCols; j++) {
+            singleRectGrid[i][j] = 0;
+        }
+    }
+    for(let i = 0; i < singleRects.length; i++) {
+        singleRectGrid[singleRects[i].y][singleRects[i].x] = 1;
+    }
+
+    let markedRects1 = [];
+    for (let i = 0; i < singleRects.length; i++) {
+        let rect = singleRects[i];
+        if(markedRects1.includes(rect)) {
+            continue;
+        }
+        //go towards bottom left until the end of the line, then go to the other end
+        let x = rect.x;
+        let y = rect.y;
+        //go diagonally down and left
+        while(x > 0 && y < charPixelRows - 1 && singleRectGrid[y + 1][x - 1] == 1) {
+            x--;
+            y++;
+        }
+        let x1 = x;
+        let y1 = y;
+        //go diagonally up and right
+        while(x < charPixelCols - 1 && y > 0 && singleRectGrid[y - 1][x + 1] == 1) {
+            x++;
+            y--;
+            markedRects1.push(singleRects[i]);
+        }
+        let x2 = x;
+        let y2 = y;
+        //push line
+        lines.push({x1: x1, y1: y1, x2: x2, y2: y2});
+    }
+    let markedRects2 = [];
+    //repeat in the other direction
+    for (let i = 0; i < singleRects.length; i++) {
+        let rect = singleRects[i];
+        if(markedRects2.includes(rect)) {
+            continue;
+        }
+        //go towards bottom right until the end of the line, then go to the other end
+        let x = rect.x;
+        let y = rect.y;
+        //go diagonally down and right
+        while(x < charPixelCols - 1 && y < charPixelRows - 1 && singleRectGrid[y + 1][x + 1] == 1) {
+            x++;
+            y++;
+        }
+        let x1 = x;
+        let y1 = y;
+        //go diagonally up and left
+        while(x > 0 && y > 0 && singleRectGrid[y - 1][x - 1] == 1) {
+            x--;
+            y--;
+            markedRects2.push(singleRects[i]);
+        }
+        let x2 = x;
+        let y2 = y;
+        //push line
+        lines.push({x1: x1, y1: y1, x2: x2, y2: y2});
+    }
+
+    //remove marked rectangles from rects
+    for(let i = rects.length - 1; i >= 0; i--) {
+        if(markedRects1.includes(rects[i]) || markedRects2.includes(rects[i])) {
+            rects.splice(i, 1);
+        }
+    }
+    
+
+    //snap lines to 0.5 grid
+    for(let i = 0; i < lines.length; i++) {
+        lines[i].x1 = Math.round(lines[i].x1);
+        lines[i].y1 = Math.round(lines[i].y1);
+        lines[i].x2 = Math.round(lines[i].x2);
+        lines[i].y2 = Math.round(lines[i].y2);
+    }
+    //merge lines with touching ends that go in the same direction
+    for(let i = 0; i < lines.length; i++) {
+        for(let j = 0; j < lines.length; j++) {
+            if(i != j) {
+                        let line1 = lines[i];
+                        let line2 = lines[j];
+                        let line1pitch = (line1.y2 - line1.y1) / (line1.x2 - line1.x1);
+                        let line2pitch = (line2.y2 - line2.y1) / (line2.x2 - line2.x1);
+                        if(line1pitch == line2pitch){
+                            if(line1.x1 == line2.x2 && line1.y1 == line2.y2) {
+                                lines[i].x1 = line2.x1;
+                                lines[i].y1 = line2.y1;
+                                lines.splice(j, 1);
+                                i--;
+                                break;
+                            }
+                            if(line1.x2 == line2.x1 && line1.y2 == line2.y1) {
+                                lines[i].x2 = line2.x2;
+                                lines[i].y2 = line2.y2;
+                                lines.splice(j, 1);
+                                i--;
+                                break;
+                            }
+                        }
+            }
+        }
+    }
+
+
+    //remove lines with zero length, and lines with identical ends
+    for(let i = lines.length - 1; i >= 0; i--) {
+        if(lines[i].x1 == lines[i].x2 && lines[i].y1 == lines[i].y2) {
+            lines.splice(i, 1);
+        }
+    }
+    for(let i = lines.length - 1; i >= 0; i--) {
+        for(let j = 0; j < lines.length; j++) {
+            if(i != j) {
+                if(lines[i].x1 == lines[j].x1 && lines[i].y1 == lines[j].y1 && lines[i].x2 == lines[j].x2 && lines[i].y2 == lines[j].y2) {
+                    lines.splice(i, 1);
+                    break;
+                }
+            }
+        }
+    }
+    //snap lines to grid
+    for(let i = 0; i < lines.length; i++) {
+        let pitch = (lines[i].y2 - lines[i].y1) / (lines[i].x2 - lines[i].x1);
+        if(pitch<0){
+        lines[i].x1 = Math.floor(lines[i].x1);
+        lines[i].y1 = Math.floor(lines[i].y1)+1;
+        lines[i].x2 = Math.ceil(lines[i].x2)+1;
+        lines[i].y2 = Math.ceil(lines[i].y2);
+        }else{
+        lines[i].x1 = Math.floor(lines[i].x1)+1;
+        lines[i].y1 = Math.floor(lines[i].y1)+1;
+        lines[i].x2 = Math.ceil(lines[i].x2);
+        lines[i].y2 = Math.ceil(lines[i].y2);
+        }
+    }
+
+    //add outlinerects to rects
+    rects = rects.concat(outlineRects);
+    return {rects: rects, lines: lines, outlineRects: outlineRects};
+
+
+}
+function buildLib(optimizationLevel=2) {
+let lineCount = 0;
+let programStart = `
+put_char:
+
+pusha
+mov dword [offsetX], ecx
+mov dword [offsetY], edx
+mov byte [currentChar], al
+
+mov dword [offsetYold], 0
+
+
+cmp byte [currentChar], 32
+jg .above32
+popa
+ret
+.above32:
+;op add offsetX offsetX ${charWidth+1}
+add dword [offsetX], ${charWidth+1}
+
+xor ebx,ebx
+mov bl, al
+shr eax,8
+mov [color],eax
+
+
+
+`;
+//let counterArray = "\nop add @counter @counter currentChar\n";
+let counterArray = "\n\n";
+//add 32 "noop"
+for(let i = 0; i < 32; i++) {
+    counterArray += "dd .char33\n";
+}
+//for every printable character
+for (let i = 32; i < 127; i++) {
+    //counterArray += "jump char" + i + " always\n";
+    
+    //counterArray += "cmp dword [currentChar], " + i + "\n";
+    //counterArray += "je .char" + i + "\n";
+    counterArray += "dd .char" + i + "\n";
+}
+
+let drawSegment = "";
+for(let i = 32; i < 127; i++) {
+    drawSegment += generateDrawCode(i);
+}
+
+let drawSegmentLines = drawSegment.split("\n").filter(l=>{return l.startsWith("op add gridX")});
+//find the first 4 most common lines
+let lineCounts = {};
+for(let i = 0; i < drawSegmentLines.length; i++) {
+    if(lineCounts[drawSegmentLines[i]] == undefined) {
+        lineCounts[drawSegmentLines[i]] = 1;
+    } else {
+        lineCounts[drawSegmentLines[i]]++;
+    }
+}
+let lineCountArray = [];
+for(let key in lineCounts) {
+    lineCountArray.push({line: key, count: lineCounts[key]});
+}
+lineCountArray.sort((a, b) => {
+    return b.count - a.count;
+});
+let mostCommonLines = [];
+for(let i = 0; i < optimizationLevel; i++) {
+    mostCommonLines.push(lineCountArray[i].line);
+}
+let staticPoints = "\n"+mostCommonLines.join("\n")+"\n";
+//remove the most common lines from the draw segment
+for(let i = 0; i < mostCommonLines.length; i++) {
+    drawSegment = drawSegment.replaceAll(mostCommonLines[i], "\n");
+}
+let ySetup = [];
+//ySetup.push("jump ySetupDone equal offsetY offsetYold");
+ySetup.push("mov eax,dword [offsetY]");
+//ySetup.push("cmp eax,dword [offsetYold]");
+//ySetup.push("je ySetupDone");
+//ySetup.push("set offsetYold offsetY");
+ySetup.push("mov dword [offsetYold], eax");
+for(let y = 0; y < charPixelRows+1; y++) {
+    //ySetup.push("op add gridY"+y+" offsetY "+(y*charPixelHeight));
+    ySetup.push("mov eax,"+(y*charPixelHeight));
+    ySetup.push("mov ecx, dword [scale]");
+    ySetup.push("shl eax,cl");
+    
+    ySetup.push("add eax,dword [offsetY]");
+    ySetup.push("mov dword [gridY"+y+"], eax");
+
+}
+
+//needed for the jump table to work
+ySetup.push(`.ySetupDone:
+
+shl ebx, 2
+jmp [.jmpTable + ebx]
+.jmpTable:
+`);
+staticPoints += ySetup.join("\n")+"\n";
+
+
+//code metrics
+let staticInstructionCount = 8 + staticPoints.split("\n").filter(l=>l.startsWith("op add gridX")).length+1;
+let characterCount = 127-32;
+let averageInstructions = (drawSegment.split("\n").filter(l=>{return l.startsWith("op")||l.startsWith("draw")}).length)/characterCount+staticInstructionCount;
+
+
+//console.log("average instructions per character: " + Math.round(averageInstructions*10)/10 + "");
+
+
+//let finalCode = programStart + staticPoints + counterArray + drawSegment;
+
+let variableNames = ["offsetX","offsetY","scale","addr","currentChar","color","maxScan","scanLength","scanOffset","nextSync","gridX0","offsetYold","gridY0","gridX1","gridX2","gridX3","gridX4","gridX5","gridY1","gridY2","gridY3","gridY4","gridY5","gridY6","gridY7","gridY8"]
+let variables = variableNames.map((v)=>{return v+":"+"dd 0\n"}).join("\n");
+
+let jumpTable = ".charJumpTable:\n";
+for(let i = 0; i < 127; i++){
+    if(i <= 32){
+        jumpTable+="dd .char33\n"
+        continue
+    }
+    jumpTable+="dd .char"+i+"\n";
+}
+
+let finalCode = programStart +staticPoints+ counterArray + drawSegment + variables + jumpTable;
+for(let i=0;i<variableNames.length;i++){
+    let currentVar = variableNames[i];
+    finalCode=finalCode.replaceAll(currentVar+"]","."+currentVar+"]");
+    finalCode=finalCode.replaceAll(currentVar+":","."+currentVar+":");
+}
+
+//count lines that arent newlines or end with ":"
+let lines = finalCode.split("\n");
+for(let i = 0; i < lines.length; i++) {
+    if(lines[i].length > 0 && lines[i].charAt(lines[i].length - 1) != ":") {
+        lineCount++;
+    }
+}
+//console.log("line count: " + lineCount);
+
+return {code: finalCode, lineCount: lineCount, };
+}
+
+
+
+buildBtn.addEventListener("click", ()=>{
+
+    let result = buildLib(0);
+    //run buildLib 1000 times, find the one with the lowest average instructions
+    let bestResult = result;
+    for(let i = 0; i < 1000; i++) {
+        result = buildLib(0);
+        //call render every time to update the UI
+        if(result.averageInstructions < bestResult.averageInstructions) {
+            bestResult = result;
+            console.log("new best: " + bestResult.averageInstructions + "with line count: " + bestResult.lineCount);
+        }
+    }
+
+    result = bestResult;
+
+
+    //copy contents of the text area to the clipboard
+    textOutput.value = result.code;
+    textOutput.select();
+    textOutput.setSelectionRange(0, 99999);
+    document.execCommand("copy");
+    textOutput.setSelectionRange(0, 0);
+    console.log(result);
+
+});
+
+
+
+function generateDrawCode(charNum){
+    let grid = storedChars[charNum];
+    //grid = flipGrid(grid);
+    //get rects and lines
+    //generate code
+    let code = ".char" + charNum + ":\n";
+    let usedYs = [];
+    let usedXs = [];
+    let drawInstr = findPatterns(grid);
+    //get all x values of objects in drawInstr
+    //the x values are "gridX" + x
+    for(let i = 0; i < drawInstr.length; i++) {
+        let str = drawInstr[i].code
+        //find all instances of gridX in the string
+        let matches = str.match(/gridX\d+/g);
+        for(let j = 0; j < matches.length; j++) {
+            let x = matches[j].replace("gridX", "");
+            if(!usedXs.includes(x)) {
+                usedXs.push(x);
+            }
+        }
+
+
+    }
+
+
+    let gridSetup = [];
+
+    //generate code for x values
+    for(let i = 0; i < usedXs.length; i++) {
+        //gridSetup.push("op add gridX" + usedXs[i] + " offsetX " + usedXs[i]*charPixelWidth);
+        gridSetup.push(`
+        mov eax, ${usedXs[i]*charPixelWidth}
+        mov ecx, dword [scale]
+        shl eax, cl
+        add eax, dword [offsetX]
+        mov dword [gridX${usedXs[i]}], eax
+        `
+        );
+    }
+    let drawCode = drawInstr.map(d=>d.code);
+    let colorCode = "\nmov eax, dword [color]\n"
+    //let endCode = ["jump mainLoop always"];
+    let endCode = ["popa\nret"];
+    return code + gridSetup.join("\n") + colorCode + drawCode.join("\n") + "\n" + endCode.join("\n") + "\n";
+}
+
+
+
+
+
+
+
+//on canvas click
+canvas.addEventListener("click", function (e) {
+    let rect = canvas.getBoundingClientRect();
+    let x = e.clientX - rect.left;
+    let y = e.clientY - rect.top;
+    //scale x and y to fit grid
+    x = Math.floor(x / (canvas.width / charWidth));
+    y = Math.floor(y / (canvas.height / charHeight));
+    //get grid position
+    let gridX = Math.floor(x / charPixelWidth);
+    let gridY = Math.floor(y / charPixelHeight);
+    //toggle pixel
+    if (storedChars[currentChar][gridY][gridX] == 1) {
+        storedChars[currentChar][gridY][gridX] = 0;
+    } else {
+        storedChars[currentChar][gridY][gridX] = 1;
+    }
+    render(storedChars[currentChar]);
+});
+
+//on next button click
+nextBtn.addEventListener("click", function() {
+    if (currentChar < 127) {
+        currentChar++;
+        currentLabel.innerHTML = currentChar;
+        render(storedChars[currentChar]);
+        document.getElementById("charDisp").innerHTML = String.fromCharCode(currentChar);
+    }
+});
+//on prev button click
+prevBtn.addEventListener("click", function() {
+    if (currentChar > 32) {
+        currentChar--;
+        currentLabel.innerHTML = currentChar;
+        render(storedChars[currentChar]);
+        document.getElementById("charDisp").innerHTML = String.fromCharCode(currentChar);
+    }
+});
+
+//add all printable ascii chars to storedChars as empty grids
+for (let i = 32; i < 127; i++) {
+    storedChars[i] = [];
+    for (let j = 0; j < charPixelRows; j++) {
+        storedChars[i][j] = [];
+        for (let k = 0; k < charPixelCols; k++) {
+            storedChars[i][j][k] = 0;
+        }
+    }
+}
+storedChars = JSON.parse('{"32":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"33":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],"34":[[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"35":[[0,0,0,0,0],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[0,0,0,0,0]],"36":[[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,0],[0,1,1,1,0],[0,0,1,0,1],[0,1,1,1,0],[0,0,1,0,0]],"37":[[0,0,0,0,0],[1,1,0,0,1],[1,1,0,1,0],[0,0,1,0,0],[0,1,0,1,1],[1,0,0,1,1],[0,0,0,0,0]],"38":[[0,1,0,0,0],[1,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"39":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"40":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]],"41":[[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"42":[[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"43":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0]],"44":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,0,1,0,0],[0,1,0,0,0]],"45":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"46":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"47":[[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"48":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"49":[[0,0,0,1,0],[0,0,1,1,0],[0,1,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,1,1]],"50":[[0,0,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,1,1,0]],"51":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"52":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,1,0],[0,1,0,1,0],[0,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],"53":[[0,0,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"54":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"55":[[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"56":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"57":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,1],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,0]],"58":[[0,0,1,1,0],[0,0,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,0,1,1,0]],"59":[[0,0,1,1,0],[0,0,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,0,0,1,0]],"60":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"61":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0]],"62":[[0,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,0,0]],"63":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],"64":[[0,1,1,1,0],[1,0,0,0,1],[1,0,1,1,1],[1,0,1,0,1],[1,0,1,1,0],[1,0,0,0,0],[0,1,1,1,1]],"65":[[0,0,1,0,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1]],"66":[[0,0,1,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,0,0]],"67":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"68":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,1,0],[0,1,1,0,0]],"69":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"70":[[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"71":[[0,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,1,1,1,0]],"72":[[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1]],"73":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],"74":[[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"75":[[1,0,0,0,1],[1,0,0,1,0],[1,0,1,0,0],[1,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],"76":[[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,0]],"77":[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,0,0,1],[0,0,0,0,0]],"78":[[1,0,0,0,1],[1,1,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,0,1,1],[1,0,0,0,1],[0,0,0,0,0]],"79":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],"80":[[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"81":[[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,0,1,1],[0,1,1,1,0],[0,0,0,0,1]],"82":[[0,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,0,0],[1,0,0,1,0],[1,0,0,0,1],[0,0,0,0,0]],"83":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"84":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"85":[[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"86":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"87":[[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0]],"88":[[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[0,0,0,0,0]],"89":[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"90":[[1,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,1,1,1,1],[0,0,0,0,0]],"91":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,0]],"92":[[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0]],"93":[[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"94":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"95":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1],[0,0,0,0,0]],"96":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"97":[[0,1,1,1,0],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"98":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],"99":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"100":[[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"101":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,0,1,1,1],[0,0,0,0,0]],"102":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"103":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,1,1],[0,1,0,0,1],[0,0,1,1,0]],"104":[[0,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"105":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"106":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0]],"107":[[0,1,0,0,0],[0,1,0,1,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"108":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"109":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[1,0,1,0,1],[1,0,1,0,1],[0,0,0,0,0]],"110":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,0,0,0,0]],"111":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"112":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0]],"113":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,1],[0,0,0,0,1],[0,0,0,0,1]],"114":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"115":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,1,0,0]],"116":[[0,0,0,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0]],"117":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"118":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"119":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0]],"120":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"121":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,1,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"122":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,1,1,1]],"123":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"124":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"125":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"126":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,1,0,1],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0]]}');
+storedChars = JSON.parse('{"32":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"33":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],"34":[[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"35":[[0,0,0,0,0],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[0,0,0,0,0]],"36":[[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,0],[0,1,1,1,0],[0,0,1,0,1],[0,1,1,1,0],[0,0,1,0,0]],"37":[[0,0,0,0,0],[1,1,0,0,1],[1,1,0,1,0],[0,0,1,0,0],[0,1,0,1,1],[1,0,0,1,1],[0,0,0,0,0]],"38":[[0,1,0,0,0],[1,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"39":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"40":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]],"41":[[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"42":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"43":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"44":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"45":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"46":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"47":[[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"48":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"49":[[0,0,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,1,1]],"50":[[0,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,1,1],[0,0,0,0,0]],"51":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"52":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,1,0],[0,1,0,1,0],[0,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],"53":[[0,0,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"54":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1]],"55":[[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"56":[[0,1,1,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"57":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,0,0,0,1],[0,1,1,1,0]],"58":[[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"59":[[0,0,1,1,0],[0,0,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"60":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"61":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0]],"62":[[0,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,0,0]],"63":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],"64":[[0,1,1,1,0],[1,0,0,0,1],[1,0,1,1,1],[1,0,1,0,1],[1,0,1,1,1],[1,0,0,0,0],[0,1,1,1,1]],"65":[[0,0,0,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1]],"66":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,1,0],[0,1,1,0,0]],"67":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"68":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0]],"69":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"70":[[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"71":[[0,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,1,1,1,0]],"72":[[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1]],"73":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],"74":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"75":[[1,0,0,0,1],[1,0,0,1,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],"76":[[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,0]],"77":[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,0,0,0,0]],"78":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[1,0,0,0,1],[0,0,0,0,0]],"79":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],"80":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"81":[[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1],[0,0,0,0,0]],"82":[[1,1,1,1,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,0,1],[0,0,0,0,0]],"83":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"84":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"85":[[0,0,0,0,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,0]],"86":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"87":[[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0]],"88":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[0,0,0,0,0]],"89":[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"90":[[1,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,1,1,1],[0,0,0,0,0]],"91":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,0]],"92":[[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0]],"93":[[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"94":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"95":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1],[0,0,0,0,0]],"96":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"97":[[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1]],"98":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,0]],"99":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"100":[[0,0,0,1,0],[0,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,0],[0,0,0,0,0]],"101":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,0,1,1,1],[0,0,0,0,0]],"102":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"103":[[0,0,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,1,1,1,0]],"104":[[0,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"105":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"106":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0]],"107":[[0,1,0,0,0],[0,1,0,1,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"108":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"109":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[1,0,1,0,1],[1,0,1,0,1],[0,0,0,0,0]],"110":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,0,0,0,0]],"111":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,0]],"112":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0]],"113":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0]],"114":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"115":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,1,1,0,0]],"116":[[0,0,0,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0]],"117":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"118":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"119":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0]],"120":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"121":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,1,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"122":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,1,1]],"123":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"124":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"125":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"126":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,1,0,1],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0]]}');
+storedChars = JSON.parse('{"32":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"33":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],"34":[[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"35":[[0,0,0,0,0],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[0,0,0,0,0]],"36":[[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,0],[0,1,1,1,0],[0,0,1,0,1],[0,1,1,1,0],[0,0,1,0,0]],"37":[[0,0,0,0,0],[1,1,0,0,1],[1,1,0,1,0],[0,0,1,0,0],[0,1,0,1,1],[1,0,0,1,1],[0,0,0,0,0]],"38":[[0,1,0,0,0],[1,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"39":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"40":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]],"41":[[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"42":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"43":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"44":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"45":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"46":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"47":[[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"48":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"49":[[0,0,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,1,1]],"50":[[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1]],"51":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"52":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,1,0],[0,1,0,1,0],[0,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],"53":[[0,0,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"54":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"55":[[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"56":[[0,1,1,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"57":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,0,0,0,1],[0,1,1,1,0]],"58":[[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"59":[[0,0,1,1,0],[0,0,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"60":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"61":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0]],"62":[[0,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,0,0]],"63":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],"64":[[0,1,1,1,0],[1,0,0,0,1],[1,0,1,1,1],[1,0,1,0,1],[1,0,1,1,1],[1,0,0,0,0],[0,1,1,1,1]],"65":[[0,0,0,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1]],"66":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,1,0],[0,1,1,0,0]],"67":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"68":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0]],"69":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"70":[[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"71":[[0,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,1,1,1,0]],"72":[[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1]],"73":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],"74":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"75":[[1,0,0,0,1],[1,0,0,1,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],"76":[[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,0]],"77":[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,0,0,0,0]],"78":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[1,0,0,0,1],[0,0,0,0,0]],"79":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0],[0,0,0,0,0]],"80":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"81":[[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1],[0,0,0,0,0]],"82":[[1,1,1,1,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,0,1],[0,0,0,0,0]],"83":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"84":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"85":[[0,0,0,0,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,0]],"86":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"87":[[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0]],"88":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[0,0,0,0,0]],"89":[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"90":[[1,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,1,1,1],[0,0,0,0,0]],"91":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,0]],"92":[[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0]],"93":[[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"94":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"95":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1],[0,0,0,0,0]],"96":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"97":[[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"98":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,1],[0,0,0,0,0]],"99":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"100":[[0,0,0,1,0],[0,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,0],[0,0,0,0,0]],"101":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,0,1,1,1],[0,0,0,0,0]],"102":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"103":[[0,0,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,1,1,1,0]],"104":[[0,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"105":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"106":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0]],"107":[[0,1,0,0,0],[0,1,0,1,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"108":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"109":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[1,0,1,0,1],[1,0,1,0,1],[0,0,0,0,0]],"110":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"111":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"112":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,1,0,0],[0,1,0,0,0],[0,1,0,0,0]],"113":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0]],"114":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"115":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,1,1,0,0]],"116":[[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,1],[0,0,0,1,0]],"117":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"118":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"119":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0]],"120":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"121":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,1,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"122":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,1,1]],"123":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"124":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"125":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"126":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,1,0,1],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0]]}');
+//storedChars = JSON.parse('{"32":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"33":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],"34":[[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"35":[[0,0,0,0,0],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[0,0,0,0,0]],"36":[[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,0],[0,1,1,1,0],[0,0,1,0,1],[0,1,1,1,0],[0,0,1,0,0]],"37":[[0,0,0,0,0],[1,1,0,0,1],[1,1,0,1,0],[0,0,1,0,0],[0,1,0,1,1],[1,0,0,1,1],[0,0,0,0,0]],"38":[[0,1,0,0,0],[1,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"39":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"40":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]],"41":[[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"42":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"43":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"44":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"45":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"46":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"47":[[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"48":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"49":[[0,0,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,1,1]],"50":[[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1]],"51":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"52":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,1,0],[0,1,0,1,0],[0,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],"53":[[0,0,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"54":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"55":[[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"56":[[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0]],"57":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,0,0,0,1],[0,1,1,1,0]],"58":[[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0]],"59":[[0,0,1,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"60":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"61":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0]],"62":[[0,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,0,0]],"63":[[0,0,1,1,0],[0,1,0,0,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],"64":[[0,1,1,1,0],[1,0,0,0,1],[1,0,1,1,1],[1,0,1,0,1],[1,0,1,1,1],[1,0,0,0,0],[0,1,1,1,1]],"65":[[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1]],"66":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,1,0],[0,1,1,1,0]],"67":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"68":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0]],"69":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"70":[[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"71":[[0,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,1,1,1,0]],"72":[[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1]],"73":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],"74":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"75":[[1,0,0,0,1],[1,0,0,1,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],"76":[[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"77":[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],"78":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"79":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],"80":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"81":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"82":[[1,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"83":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"84":[[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"85":[[0,0,0,0,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1]],"86":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0]],"87":[[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0]],"88":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"89":[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"90":[[1,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],"91":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"92":[[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0]],"93":[[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0]],"94":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"95":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1]],"96":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"97":[[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"98":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,1]],"99":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"100":[[0,0,0,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,1,0]],"101":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,0,1,1,0]],"102":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,0,0],[0,1,0,0,0],[0,1,0,0,0]],"103":[[0,0,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,1,1,1,0]],"104":[[0,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1]],"105":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"106":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0]],"107":[[0,0,0,0,0],[0,1,0,0,0],[0,1,0,1,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1]],"108":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0]],"109":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1]],"110":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1]],"111":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"112":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,1,0,0],[0,1,0,0,0],[0,1,0,0,0]],"113":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0]],"114":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"115":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,1,1,0,0]],"116":[[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,1],[0,0,0,1,0]],"117":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0]],"118":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"119":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0]],"120":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0]],"121":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,1,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"122":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,1,1]],"123":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"124":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"125":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"126":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,1,0,1],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0]]}');
+//storedChars = JSON.parse('{"32":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"33":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],"34":[[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"35":[[0,0,0,0,0],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[0,0,0,0,0]],"36":[[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,0],[0,1,1,1,0],[0,0,1,0,1],[0,1,1,1,0],[0,0,1,0,0]],"37":[[0,0,0,0,0],[1,1,0,0,1],[1,1,0,1,0],[0,0,1,0,0],[0,1,0,1,1],[1,0,0,1,1],[0,0,0,0,0]],"38":[[0,1,0,0,0],[1,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"39":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"40":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]],"41":[[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"42":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"43":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"44":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"45":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"46":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"47":[[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"48":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"49":[[0,0,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,1,1]],"50":[[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1]],"51":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"52":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,1,0],[0,1,0,1,0],[0,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],"53":[[0,0,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"54":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"55":[[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"56":[[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0]],"57":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,0,0,0,1],[0,1,1,1,0]],"58":[[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0]],"59":[[0,0,1,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"60":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"61":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0]],"62":[[0,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,0,0]],"63":[[0,0,1,1,0],[0,1,0,0,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],"64":[[0,1,1,1,0],[1,0,0,0,1],[1,0,1,1,1],[1,0,1,0,1],[1,0,1,1,1],[1,0,0,0,0],[0,1,1,1,1]],"65":[[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1]],"66":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,1,0],[0,1,1,1,0]],"67":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"68":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0]],"69":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"70":[[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"71":[[0,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,1,1,1,0]],"72":[[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1]],"73":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],"74":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"75":[[1,0,0,0,1],[1,0,0,1,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],"76":[[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"77":[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],"78":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"79":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],"80":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"81":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"82":[[1,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"83":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"84":[[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"85":[[0,0,0,0,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1]],"86":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0]],"87":[[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0]],"88":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"89":[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"90":[[1,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],"91":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"92":[[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0]],"93":[[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0]],"94":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"95":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1]],"96":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"97":[[0,1,1,1,0],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"98":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"99":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"100":[[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],"101":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"102":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"103":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,1,1,1,0]],"104":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"105":[[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"106":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0]],"107":[[0,0,0,0,0],[0,1,0,0,0],[0,1,0,1,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,0,0,0,0]],"108":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,1,0],[0,0,0,0,0]],"109":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,0,0,0,0]],"110":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"111":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"112":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,1,0,0],[0,1,0,0,0],[0,1,0,0,0]],"113":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0]],"114":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"115":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],"116":[[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,1],[0,0,0,1,0]],"117":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"118":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"119":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,0,0,0,0]],"120":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"121":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,1,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"122":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,0,0,0]],"123":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"124":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"125":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"126":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,1,0,1],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0]]}');
+//storedChars = JSON.parse('{"32":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"33":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],"34":[[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"35":[[0,0,0,0,0],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[0,0,0,0,0]],"36":[[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,0],[0,1,1,1,0],[0,0,1,0,1],[0,1,1,1,0],[0,0,1,0,0]],"37":[[0,0,0,0,0],[1,1,0,0,1],[1,1,0,1,0],[0,0,1,0,0],[0,1,0,1,1],[1,0,0,1,1],[0,0,0,0,0]],"38":[[0,1,0,0,0],[1,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"39":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"40":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]],"41":[[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"42":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"43":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"44":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"45":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"46":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"47":[[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"48":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"49":[[0,0,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,1,1]],"50":[[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1]],"51":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"52":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,1,0],[1,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],"53":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"54":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"55":[[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"56":[[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0]],"57":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,0,0,0,1],[0,1,1,1,0]],"58":[[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0]],"59":[[0,0,1,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"60":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"61":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0]],"62":[[0,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,0,0]],"63":[[0,0,1,1,0],[0,1,0,0,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],"64":[[0,1,1,1,0],[1,0,0,0,1],[1,0,1,1,1],[1,0,1,0,1],[1,0,1,1,1],[1,0,0,0,0],[0,1,1,1,1]],"65":[[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1]],"66":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,1,0],[0,1,1,1,0]],"67":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"68":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0]],"69":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"70":[[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"71":[[0,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,1,1,1,0]],"72":[[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1]],"73":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],"74":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"75":[[1,0,0,0,1],[1,0,0,1,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],"76":[[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"77":[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],"78":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"79":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],"80":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"81":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"82":[[1,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"83":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"84":[[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"85":[[0,0,0,0,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1]],"86":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0]],"87":[[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0]],"88":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"89":[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"90":[[1,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],"91":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"92":[[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0]],"93":[[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0]],"94":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"95":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1]],"96":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"97":[[0,1,1,1,0],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"98":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"99":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"100":[[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],"101":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"102":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"103":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,1,1,1,0]],"104":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"105":[[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"106":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0]],"107":[[0,0,0,0,0],[0,1,0,0,0],[0,1,0,1,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,0,0,0,0]],"108":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,1,0],[0,0,0,0,0]],"109":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,0,0,0,0]],"110":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"111":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"112":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0]],"113":[[0,0,0,0,0],[0,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0]],"114":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"115":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],"116":[[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,1],[0,0,0,1,0]],"117":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"118":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"119":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,0,0,0,0]],"120":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"121":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,1,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"122":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,0,0,0]],"123":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"124":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"125":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"126":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,1,0,1],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0]]}');
+storedChars = JSON.parse('{"32":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"33":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],"34":[[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"35":[[0,0,0,0,0],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[0,0,0,0,0]],"36":[[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,0],[0,1,1,1,0],[0,0,1,0,1],[0,1,1,1,0],[0,0,1,0,0]],"37":[[0,0,0,0,0],[1,1,0,0,1],[1,1,0,1,0],[0,0,1,0,0],[0,1,0,1,1],[1,0,0,1,1],[0,0,0,0,0]],"38":[[0,1,0,0,0],[1,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"39":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"40":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]],"41":[[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"42":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"43":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"44":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"45":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"46":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"47":[[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"48":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"49":[[0,0,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,1,1]],"50":[[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1]],"51":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"52":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,1,0],[1,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],"53":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"54":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"55":[[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"56":[[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0]],"57":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,0,0,0,1],[0,1,1,1,0]],"58":[[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0]],"59":[[0,0,1,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"60":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"61":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0]],"62":[[0,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,0,0]],"63":[[0,0,1,1,0],[0,1,0,0,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],"64":[[0,1,1,1,0],[1,0,0,0,1],[1,0,1,1,1],[1,0,1,0,1],[1,0,1,1,1],[1,0,0,0,0],[0,1,1,1,1]],"65":[[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1]],"66":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,1,0],[0,1,1,1,0]],"67":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"68":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,1,0],[0,1,1,0,0]],"69":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"70":[[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"71":[[0,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,1,1,1,0]],"72":[[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1]],"73":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],"74":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"75":[[1,0,0,0,1],[1,0,0,1,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],"76":[[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"77":[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],"78":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"79":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],"80":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"81":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"82":[[1,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"83":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"84":[[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"85":[[0,0,0,0,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1]],"86":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0]],"87":[[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0]],"88":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"89":[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"90":[[1,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],"91":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"92":[[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0]],"93":[[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0]],"94":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"95":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1]],"96":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"97":[[0,0,0,0,0],[0,0,1,1,0],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"98":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"99":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"100":[[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],"101":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"102":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"103":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,1,1,1,0]],"104":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"105":[[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"106":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0]],"107":[[0,0,0,0,0],[0,1,0,0,0],[0,1,0,1,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,0,0,0,0]],"108":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,1,0],[0,0,0,0,0]],"109":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,0,0,0,0]],"110":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"111":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"112":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0]],"113":[[0,0,0,0,0],[0,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0]],"114":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"115":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],"116":[[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,1],[0,0,0,1,0]],"117":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"118":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"119":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,0,0,0,0]],"120":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"121":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,1,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"122":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,0,0,0]],"123":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"124":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"125":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"126":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,1,0,1],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0]]}');
+storedChars = JSON.parse('{"32":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"33":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],"34":[[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"35":[[0,0,0,0,0],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[0,0,0,0,0]],"36":[[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,0],[0,1,1,1,0],[0,0,1,0,1],[0,1,1,1,0],[0,0,1,0,0]],"37":[[0,0,0,0,0],[1,1,0,0,1],[1,1,0,1,0],[0,0,1,0,0],[0,1,0,1,1],[1,0,0,1,1],[0,0,0,0,0]],"38":[[0,1,0,0,0],[1,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"39":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"40":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]],"41":[[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"42":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"43":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"44":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"45":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"46":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"47":[[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"48":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"49":[[0,0,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,1,1]],"50":[[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1]],"51":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"52":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,1,0],[1,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],"53":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"54":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"55":[[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"56":[[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0]],"57":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,0,0,0,1],[0,1,1,1,0]],"58":[[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0]],"59":[[0,0,1,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"60":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"61":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0]],"62":[[0,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,0,0]],"63":[[0,0,1,1,0],[0,1,0,0,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],"64":[[0,1,1,1,0],[1,0,0,0,1],[1,0,1,1,1],[1,0,1,0,1],[1,0,1,1,1],[1,0,0,0,0],[0,1,1,1,1]],"65":[[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1]],"66":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,1,0],[0,1,1,1,0]],"67":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"68":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,1,0],[0,1,1,0,0]],"69":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"70":[[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"71":[[0,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,1,1,1,0]],"72":[[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1]],"73":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],"74":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"75":[[1,0,0,0,1],[1,0,0,1,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],"76":[[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"77":[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],"78":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"79":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],"80":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"81":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"82":[[1,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"83":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"84":[[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"85":[[0,0,0,0,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1]],"86":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0]],"87":[[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0]],"88":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"89":[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"90":[[1,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],"91":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"92":[[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0]],"93":[[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0]],"94":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"95":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1]],"96":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"97":[[0,0,0,0,0],[0,0,1,1,0],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"98":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"99":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"100":[[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"101":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"102":[[0,0,0,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"103":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,1,1,1,0]],"104":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"105":[[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"106":[[0,0,0,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"107":[[0,0,0,0,0],[0,1,0,0,0],[0,1,0,1,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,0,0,0,0]],"108":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,1,0],[0,0,0,0,0]],"109":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,0,0,0,0]],"110":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"111":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"112":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0]],"113":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,1],[0,0,0,0,1],[0,0,0,0,1]],"114":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"115":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],"116":[[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,1],[0,0,0,1,0]],"117":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"118":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"119":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,0,0,0,0]],"120":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"121":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,1,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"122":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,0,0,0]],"123":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"124":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"125":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"126":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,1,0,1],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0]]}');
+
+storedChars = JSON.parse('{"32":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"33":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],"34":[[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"35":[[0,0,0,0,0],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[0,0,0,0,0]],"36":[[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,0],[0,1,1,1,0],[0,0,1,0,1],[0,1,1,1,0],[0,0,1,0,0]],"37":[[0,0,0,0,0],[1,1,0,0,1],[1,1,0,1,0],[0,0,1,0,0],[0,1,0,1,1],[1,0,0,1,1],[0,0,0,0,0]],"38":[[0,1,0,0,0],[1,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"39":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"40":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]],"41":[[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"42":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"43":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"44":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"45":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"46":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"47":[[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"48":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"49":[[0,0,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,1,1]],"50":[[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1]],"51":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"52":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,1,0],[1,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],"53":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"54":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"55":[[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"56":[[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0]],"57":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,0,0,0,1],[0,1,1,1,0]],"58":[[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0]],"59":[[0,0,1,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"60":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"61":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0]],"62":[[0,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,0,0]],"63":[[0,0,1,1,0],[0,1,0,0,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],"64":[[0,1,1,1,0],[1,0,0,0,1],[1,0,1,1,1],[1,0,1,0,1],[1,0,1,1,1],[1,0,0,0,0],[0,1,1,1,1]],"65":[[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1]],"66":[[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0]],"67":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"68":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,1,0],[0,1,1,0,0]],"69":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"70":[[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"71":[[0,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,1,1,1,0]],"72":[[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1]],"73":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],"74":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"75":[[1,0,0,0,1],[1,0,0,1,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],"76":[[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"77":[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],"78":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"79":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],"80":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"81":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"82":[[1,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,1,0],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"83":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"84":[[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"85":[[0,0,0,0,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1]],"86":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0]],"87":[[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0]],"88":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"89":[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"90":[[1,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],"91":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"92":[[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0]],"93":[[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0]],"94":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"95":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1]],"96":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"97":[[0,0,0,0,0],[0,0,1,1,0],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"98":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"99":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"100":[[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"101":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"102":[[0,0,0,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"103":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,1,1,1,0]],"104":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"105":[[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"106":[[0,0,0,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"107":[[0,0,0,0,0],[0,1,0,0,0],[0,1,0,1,0],[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,0,0,0,0]],"108":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,1,0],[0,0,0,0,0]],"109":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,0,0,0,0]],"110":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"111":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"112":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0]],"113":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,1],[0,0,0,0,1],[0,0,0,0,1]],"114":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,0,0,0]],"115":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],"116":[[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,1],[0,0,0,1,0]],"117":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"118":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"119":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,0,0,0,0]],"120":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"121":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,1,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"122":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,0,0,0]],"123":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"124":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"125":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"126":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,1,0,1],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0]]}');
+storedChars = JSON.parse('{"32":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"33":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],"34":[[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"35":[[0,1,0,1,0],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[0,1,0,1,0]],"36":[[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,0],[0,1,1,1,0],[0,0,1,0,1],[0,1,1,1,0],[0,0,1,0,0]],"37":[[0,0,0,0,0],[1,1,0,0,1],[1,1,0,1,0],[0,0,1,0,0],[0,1,0,1,1],[1,0,0,1,1],[0,0,0,0,0]],"38":[[0,1,0,0,0],[1,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"39":[[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"40":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]],"41":[[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"42":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0]],"43":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"44":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,0,0]],"45":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"46":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"47":[[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"48":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"49":[[0,0,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,1,1]],"50":[[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1]],"51":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"52":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,1,0],[1,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],"53":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"54":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"55":[[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"56":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"57":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0]],"58":[[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0]],"59":[[0,0,1,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"60":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"61":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0]],"62":[[0,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,0,0]],"63":[[0,0,1,1,0],[0,1,0,0,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],"64":[[0,1,1,1,0],[1,0,0,0,1],[1,0,1,1,1],[1,0,1,0,1],[1,0,1,1,1],[1,0,0,0,0],[0,1,1,1,1]],"65":[[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1]],"66":[[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0]],"67":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"68":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,1,0],[0,1,1,0,0]],"69":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"70":[[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"71":[[0,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,1,1,1,0]],"72":[[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1]],"73":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],"74":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"75":[[1,0,0,0,1],[1,0,0,1,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],"76":[[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"77":[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],"78":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"79":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],"80":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"81":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"82":[[1,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,0,0],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"83":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"84":[[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"85":[[0,0,0,0,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"86":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0]],"87":[[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0]],"88":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"89":[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"90":[[1,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],"91":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"92":[[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0]],"93":[[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0]],"94":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"95":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1]],"96":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"97":[[0,0,0,0,0],[0,0,1,1,0],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"98":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"99":[[0,0,0,0,0],[0,0,0,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,1],[0,0,0,0,0]],"100":[[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"101":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"102":[[0,0,0,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"103":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,1,1,1,0]],"104":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"105":[[0,0,0,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0]],"106":[[0,0,0,0,0],[0,0,0,0,1],[0,0,0,0,0],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,0,1],[0,0,0,1,0]],"107":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,1],[0,0,1,1,0],[0,0,1,0,1],[0,0,1,0,1],[0,0,0,0,0]],"108":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,1,0],[0,0,0,0,0]],"109":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,0,0,0,0]],"110":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"111":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"112":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0]],"113":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,1],[0,0,0,0,1]],"114":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"115":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],"116":[[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,1],[0,0,0,1,0]],"117":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"118":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"119":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,0,0,0,0]],"120":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"121":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,1,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"122":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,0,0,0]],"123":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"124":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"125":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"126":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,1,0,1],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0]]}');
+storedChars = JSON.parse('{"32":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"33":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],"34":[[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"35":[[0,1,0,1,0],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[0,1,0,1,0]],"36":[[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,0],[0,1,1,1,0],[0,0,1,0,1],[0,1,1,1,0],[0,0,1,0,0]],"37":[[0,0,0,0,0],[1,1,0,0,1],[1,1,0,1,0],[0,0,1,0,0],[0,1,0,1,1],[1,0,0,1,1],[0,0,0,0,0]],"38":[[0,1,0,0,0],[1,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"39":[[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"40":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]],"41":[[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"42":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0]],"43":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"44":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"45":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"46":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"47":[[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"48":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"49":[[0,0,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,1,1]],"50":[[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1]],"51":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"52":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,1,0],[1,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],"53":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"54":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"55":[[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"56":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"57":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0]],"58":[[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0]],"59":[[0,0,1,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"60":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"61":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0]],"62":[[0,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,0,0]],"63":[[0,0,1,1,0],[0,1,0,0,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],"64":[[0,1,1,1,0],[1,0,0,0,1],[1,0,1,1,1],[1,0,1,0,1],[1,0,1,1,1],[1,0,0,0,0],[0,1,1,1,1]],"65":[[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1]],"66":[[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0]],"67":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"68":[[0,1,1,0,0],[0,1,0,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,1,0],[0,1,1,0,0]],"69":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"70":[[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"71":[[0,1,1,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,1,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,1,1,1,0]],"72":[[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1]],"73":[[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],"74":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"75":[[1,0,0,0,1],[1,0,0,1,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,0],[1,0,0,1,0],[1,0,0,0,1]],"76":[[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"77":[[1,0,0,0,1],[1,1,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1]],"78":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"79":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],"80":[[0,1,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0]],"81":[[0,0,0,0,0],[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"82":[[1,1,1,0,0],[1,0,0,1,0],[1,0,0,1,0],[1,1,1,0,0],[1,0,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"83":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,0],[0,1,1,1,0],[0,0,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"84":[[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"85":[[0,0,0,0,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"86":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0]],"87":[[1,0,0,0,1],[1,0,1,0,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0]],"88":[[0,0,0,0,0],[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,0,1],[1,0,0,0,1]],"89":[[1,0,0,0,1],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"90":[[1,1,1,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,0,0,0,0],[1,1,1,1,1]],"91":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"92":[[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0]],"93":[[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0]],"94":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"95":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1]],"96":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"97":[[0,0,0,0,0],[0,0,1,1,0],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"98":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"99":[[0,0,0,0,0],[0,0,0,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,1],[0,0,0,0,0]],"100":[[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"101":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"102":[[0,0,0,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"103":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,1,1,1,0]],"104":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"105":[[0,0,0,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0]],"106":[[0,0,0,0,0],[0,0,0,0,1],[0,0,0,0,0],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,0,1],[0,0,0,1,0]],"107":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,1],[0,0,1,1,0],[0,0,1,0,1],[0,0,1,0,1],[0,0,0,0,0]],"108":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,1,0],[0,0,0,0,0]],"109":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,0,0,0,0]],"110":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"111":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"112":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0]],"113":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,1],[0,0,0,0,1]],"114":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"115":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],"116":[[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,1],[0,0,0,1,0]],"117":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"118":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"119":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,0,0,0,0]],"120":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"121":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,1,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"122":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,0,0,0]],"123":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"124":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"125":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"126":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,1,0,1],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0]]}');
+
+storedChars = JSON.parse('{"32":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"33":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],"34":[[0,1,0,1,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"35":[[0,1,0,1,0],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[1,1,1,1,1],[0,1,0,1,0],[0,1,0,1,0]],"36":[[0,0,1,0,0],[0,1,1,1,0],[1,0,1,0,0],[0,1,1,1,0],[0,0,1,0,1],[0,1,1,1,0],[0,0,1,0,0]],"37":[[0,0,0,0,0],[1,1,0,0,1],[1,1,0,1,0],[0,0,1,0,0],[0,1,0,1,1],[1,0,0,1,1],[0,0,0,0,0]],"38":[[0,1,0,0,0],[1,0,1,0,0],[1,0,1,0,0],[0,1,0,0,0],[1,0,1,0,1],[1,0,0,1,0],[0,1,1,0,1]],"39":[[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"40":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0]],"41":[[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"42":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0]],"43":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"44":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"45":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"46":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0]],"47":[[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0]],"48":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"49":[[0,0,0,1,0],[0,0,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,1,1]],"50":[[0,1,1,1,0],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,1]],"51":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"52":[[0,0,0,1,0],[0,0,1,0,0],[0,1,0,1,0],[1,0,0,1,0],[1,1,1,1,1],[0,0,0,1,0],[0,0,0,1,0]],"53":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,0,1,0],[0,0,1,0,0]],"54":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"55":[[0,1,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"56":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0]],"57":[[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0]],"58":[[0,1,1,0,0],[0,1,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,0,0],[0,1,1,0,0]],"59":[[0,0,1,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"60":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0]],"61":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0],[0,0,0,0,0]],"62":[[0,0,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[0,0,0,0,0]],"63":[[0,0,1,1,0],[0,1,0,0,1],[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0]],"64":[[0,1,1,1,0],[1,0,0,0,1],[1,0,1,1,1],[1,0,1,0,1],[1,0,1,1,1],[1,0,0,0,0],[0,1,1,1,1]],"65":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[1,1,0,0,0]],"66":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,1],[0,1,1,1,1]],"67":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0]],"68":[[0,0,0,0,0],[1,1,1,1,1],[0,0,0,0,0],[1,1,0,0,0],[0,0,1,1,1],[0,0,0,0,0],[0,0,0,0,0]],"69":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,1,0],[1,0,0,0,0],[1,0,0,0,0],[1,0,0,0,0],[1,1,1,1,0]],"70":[[0,0,0,0,0],[1,1,1,1,1],[0,0,0,0,0],[1,0,1,0,1],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"71":[[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0]],"72":[[0,0,0,0,0],[1,1,1,1,1],[0,0,0,0,0],[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"73":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"74":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0]],"75":[[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,0,1,0,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"76":[[0,1,0,0,0],[0,1,0,0,0],[0,1,0,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,1,0],[0,1,0,0,0]],"77":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,0,0,1],[0,0,0,0,1],[0,0,0,0,1],[0,1,1,1,1]],"78":[[0,0,0,0,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,1],[0,0,0,1,1],[0,0,1,1,0],[0,1,1,0,0]],"79":[[0,0,0,0,0],[0,1,1,1,1],[0,0,0,0,1],[0,0,0,0,1],[0,0,0,1,1],[0,0,1,1,0],[0,1,1,0,0]],"80":[[0,1,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,0,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,1,0]],"81":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[1,1,1,1,1],[0,0,0,0,1],[0,0,0,0,1],[1,1,1,1,1]],"82":[[1,0,0,0,1],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1]],"83":[[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],"84":[[1,1,1,1,1],[0,0,0,0,1],[0,0,0,0,1],[0,0,0,0,1],[0,0,0,0,1],[0,0,0,0,0],[0,0,0,0,1]],"85":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,0,0]],"86":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[1,1,1,1,1],[0,0,0,0,0],[1,1,1,1,1],[0,0,0,0,0]],"87":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0]],"88":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,0,1,0,0]],"89":[[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0]],"90":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0]],"91":[[0,1,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0]],"92":[[0,1,0,0,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0]],"93":[[0,1,1,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,1,0]],"94":[[0,0,0,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"95":[[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,1]],"96":[[0,0,0,0,0],[0,0,1,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]],"97":[[0,0,0,0,0],[0,0,1,1,0],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"98":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"99":[[0,0,0,0,0],[0,0,0,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,1,1],[0,0,0,0,0]],"100":[[0,0,0,0,1],[0,0,0,0,1],[0,0,1,1,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"101":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0],[0,0,1,1,0],[0,0,0,0,0]],"102":[[0,0,0,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"103":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,1],[0,0,0,0,1],[0,1,1,1,0]],"104":[[0,1,0,0,0],[0,1,0,0,0],[0,1,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"105":[[0,0,0,0,0],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,0]],"106":[[0,0,0,0,0],[0,0,0,0,1],[0,0,0,0,0],[0,0,0,0,1],[0,0,0,0,1],[0,0,1,0,1],[0,0,0,1,0]],"107":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,1],[0,0,1,1,0],[0,0,1,0,1],[0,0,1,0,1],[0,0,0,0,0]],"108":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,1,0],[0,0,0,0,0]],"109":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[1,1,0,1,1],[1,0,1,0,1],[1,0,0,0,1],[0,0,0,0,0]],"110":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,0,0,1],[0,0,0,0,0]],"111":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,0],[0,0,0,0,0]],"112":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,1,1,1,0],[0,1,0,0,0]],"113":[[0,0,0,0,0],[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,1],[0,1,0,0,1],[0,0,1,1,1],[0,0,0,0,1]],"114":[[0,0,0,0,0],[0,0,0,1,0],[0,0,1,0,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"115":[[0,0,0,0,0],[0,0,1,1,0],[0,1,0,0,0],[0,1,1,0,0],[0,0,0,1,0],[0,1,1,0,0],[0,0,0,0,0]],"116":[[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,1],[0,0,0,1,0]],"117":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,1,1,0],[0,0,0,0,0]],"118":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,1,0,1,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,0,0,0]],"119":[[0,0,0,0,0],[0,0,0,0,0],[1,0,0,0,1,1],[1,0,1,0,1],[1,0,1,0,1],[0,1,0,1,0],[0,0,0,0,0]],"120":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,0,1,0],[0,0,0,0,0]],"121":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,1],[0,0,1,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0]],"122":[[0,0,0,0,0],[0,0,0,0,0],[0,1,1,1,0],[0,0,0,1,0],[0,0,1,0,0],[0,1,1,1,0],[0,0,0,0,0]],"123":[[0,0,1,1,0],[0,1,0,0,0],[0,1,0,0,0],[1,0,0,0,0],[0,1,0,0,0],[0,1,0,0,0],[0,0,1,1,0]],"124":[[0,0,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]],"125":[[0,1,1,0,0],[0,0,0,1,0],[0,0,0,1,0],[0,0,0,0,1],[0,0,0,1,0],[0,0,0,1,0],[0,1,1,0,0]],"126":[[0,0,0,0,0],[0,0,0,0,0],[0,1,0,0,0],[1,0,1,0,1],[0,0,0,1,0],[0,0,0,0,0],[0,0,0,0,0]]}');
+class Point {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+
+}
+
+function flipGrid(grid) {
+    let newGrid = [];
+    //upside down
+    for (let i = 0; i < grid.length; i++) {
+        newGrid.push(grid[grid.length - 1 - i]);
+    }
+    return newGrid;
+}
+
+//create a new canvas element, and add it to the document
+let metricsCanvas = document.createElement("canvas");
+metricsCanvas.width = 250;
+metricsCanvas.height = 250;
+document.body.appendChild(metricsCanvas);
+let metricsCtx = metricsCanvas.getContext("2d");
+//call buildLib with optimization levels from 0 to 14, and plot both line count and instructions per character
+let lineCounts = [];
+let instructionsPerChar = [];
+for (let i = 0; i < 5; i++) {
+    let lib = buildLib(i);
+    let lines = lib.lineCount;
+    let ipc = lib.averageInstructions;
+    lineCounts.push(lines);
+    instructionsPerChar.push(ipc);
+}
+//plot the results using different colors
+metricsCtx.strokeStyle = "red";
+plot(lineCounts, metricsCtx);
+metricsCtx.strokeStyle = "blue";
+plot(instructionsPerChar, metricsCtx);
+
+//draw labels for the colors
+//smaller font size
+metricsCtx.font = "9px Arial";
+metricsCtx.fillStyle = "red";
+metricsCtx.fillText("line count", 25, 10);
+metricsCtx.fillStyle = "blue";
+metricsCtx.fillText("instructions per character", 25, 20);
+
+
+function plot(data, ctx) {
+    let max = Math.max(...data);
+    let min = Math.min(...data);
+    let range = max - min;
+    let width = ctx.canvas.width;
+    let height = ctx.canvas.height;
+    ctx.beginPath();
+    for (let i = 0; i < data.length; i++) {
+        let x = i / data.length * width;
+        let y = height - (data[i] - min) / range * height;
+        ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+}
+
+
+
+
+
+
+
+
+</script>
+
+
+
+
+
+
+    </body>
+</html>
