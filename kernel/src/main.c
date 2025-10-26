@@ -2,7 +2,8 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <limine.h>
-
+#include "kernel.h"
+#include "drawing.h"
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
 // See specification for further info.
@@ -103,7 +104,10 @@ static void hcf(void) {
 // The following will be our kernel's entry point.
 // If renaming kmain() to something else, make sure to change the
 // linker script accordingly.
+kernel_values_t kglobals;
+
 void kmain(void) {
+
     // Ensure the bootloader actually understands our base revision (see spec).
     if (LIMINE_BASE_REVISION_SUPPORTED == false) {
         hcf();
@@ -117,13 +121,24 @@ void kmain(void) {
 
     // Fetch the first framebuffer.
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
+    //kglobals.framebuffer.address = (size_t)framebuffer->address;
+    
+    kglobals.framebuffer.pitch = framebuffer->pitch;
+    kglobals.framebuffer.width = framebuffer->width;
+    kglobals.framebuffer.height = framebuffer->height;
 
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
     for (size_t i = 0; i < 100; i++) {
-        volatile uint32_t *fb_ptr = framebuffer->address;
-        fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
+        //volatile uint32_t *fb_ptr = framebuffer->address;
+        kglobals.framebuffer.fb_ptr = framebuffer->address;
+        
+        kglobals.framebuffer.fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
+        put_pixel(i,i,0xFFFFFF);
     }
 
     // We're done, just hang...
     hcf();
 }
+
+
+

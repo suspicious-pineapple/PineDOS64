@@ -405,148 +405,30 @@ function getRectangles(grid) {
 
 }
 function buildLib(optimizationLevel=2) {
-let lineCount = 0;
-let programStart = `
-put_char:
 
-pusha
-mov dword [offsetX], ecx
-mov dword [offsetY], edx
-mov byte [currentChar], al
+    let drawcodes = Array(128);
+    for(let i = 32; i < 127;i++){
+        let current = storedChars[i];
+        let bytes = Array(8);
+        for(let y = 0; y < 7; y++){
+            for(let x = 0; x < 5; x++){
+                bytes[y] = bytes[y] | current[y][x]*Math.pow(2, x);
+                
+            }
+            
+        }
+        //let final = bytes[0] | bytes[1]<<1*8 | bytes[2]<<2*8 | bytes[3]<<3*8 | bytes[4]<<4*8 | bytes[5]<<5*8 | bytes[6]<<6*8 | bytes[7]<<7*8;
+        
 
-mov dword [offsetYold], 0
-
-
-cmp byte [currentChar], 32
-jg .above32
-popa
-ret
-.above32:
-;op add offsetX offsetX ${charWidth+1}
-add dword [offsetX], ${charWidth+1}
-
-xor ebx,ebx
-mov bl, al
-shr eax,8
-mov [color],eax
-
-
-
-`;
-//let counterArray = "\nop add @counter @counter currentChar\n";
-let counterArray = "\n\n";
-//add 32 "noop"
-for(let i = 0; i < 32; i++) {
-    counterArray += "dd .char33\n";
-}
-//for every printable character
-for (let i = 32; i < 127; i++) {
-    //counterArray += "jump char" + i + " always\n";
-    
-    //counterArray += "cmp dword [currentChar], " + i + "\n";
-    //counterArray += "je .char" + i + "\n";
-    counterArray += "dd .char" + i + "\n";
-}
-
-let drawSegment = "";
-for(let i = 32; i < 127; i++) {
-    drawSegment += generateDrawCode(i);
-}
-
-let drawSegmentLines = drawSegment.split("\n").filter(l=>{return l.startsWith("op add gridX")});
-//find the first 4 most common lines
-let lineCounts = {};
-for(let i = 0; i < drawSegmentLines.length; i++) {
-    if(lineCounts[drawSegmentLines[i]] == undefined) {
-        lineCounts[drawSegmentLines[i]] = 1;
-    } else {
-        lineCounts[drawSegmentLines[i]]++;
+        let final = "0x"+bytes.reverse().map((b)=>(b<=15?"0"+b.toString(16):b.toString(16))).reduce((a,b)=>a+b);
+        drawcodes[i]=final;
     }
-}
-let lineCountArray = [];
-for(let key in lineCounts) {
-    lineCountArray.push({line: key, count: lineCounts[key]});
-}
-lineCountArray.sort((a, b) => {
-    return b.count - a.count;
-});
-let mostCommonLines = [];
-for(let i = 0; i < optimizationLevel; i++) {
-    mostCommonLines.push(lineCountArray[i].line);
-}
-let staticPoints = "\n"+mostCommonLines.join("\n")+"\n";
-//remove the most common lines from the draw segment
-for(let i = 0; i < mostCommonLines.length; i++) {
-    drawSegment = drawSegment.replaceAll(mostCommonLines[i], "\n");
-}
-let ySetup = [];
-//ySetup.push("jump ySetupDone equal offsetY offsetYold");
-ySetup.push("mov eax,dword [offsetY]");
-//ySetup.push("cmp eax,dword [offsetYold]");
-//ySetup.push("je ySetupDone");
-//ySetup.push("set offsetYold offsetY");
-ySetup.push("mov dword [offsetYold], eax");
-for(let y = 0; y < charPixelRows+1; y++) {
-    //ySetup.push("op add gridY"+y+" offsetY "+(y*charPixelHeight));
-    ySetup.push("mov eax,"+(y*charPixelHeight));
-    ySetup.push("mov ecx, dword [scale]");
-    ySetup.push("shl eax,cl");
-    
-    ySetup.push("add eax,dword [offsetY]");
-    ySetup.push("mov dword [gridY"+y+"], eax");
-
-}
-
-//needed for the jump table to work
-ySetup.push(`.ySetupDone:
-
-shl ebx, 2
-jmp [.jmpTable + ebx]
-.jmpTable:
-`);
-staticPoints += ySetup.join("\n")+"\n";
 
 
-//code metrics
-let staticInstructionCount = 8 + staticPoints.split("\n").filter(l=>l.startsWith("op add gridX")).length+1;
-let characterCount = 127-32;
-let averageInstructions = (drawSegment.split("\n").filter(l=>{return l.startsWith("op")||l.startsWith("draw")}).length)/characterCount+staticInstructionCount;
 
 
-//console.log("average instructions per character: " + Math.round(averageInstructions*10)/10 + "");
 
-
-//let finalCode = programStart + staticPoints + counterArray + drawSegment;
-
-let variableNames = ["offsetX","offsetY","scale","addr","currentChar","color","maxScan","scanLength","scanOffset","nextSync","gridX0","offsetYold","gridY0","gridX1","gridX2","gridX3","gridX4","gridX5","gridY1","gridY2","gridY3","gridY4","gridY5","gridY6","gridY7","gridY8"]
-let variables = variableNames.map((v)=>{return v+":"+"dd 0\n"}).join("\n");
-
-let jumpTable = ".charJumpTable:\n";
-for(let i = 0; i < 127; i++){
-    if(i <= 32){
-        jumpTable+="dd .char33\n"
-        continue
-    }
-    jumpTable+="dd .char"+i+"\n";
-}
-
-let finalCode = programStart +staticPoints+ counterArray + drawSegment + variables + jumpTable;
-for(let i=0;i<variableNames.length;i++){
-    let currentVar = variableNames[i];
-    finalCode=finalCode.replaceAll(currentVar+"]","."+currentVar+"]");
-    finalCode=finalCode.replaceAll(currentVar+":","."+currentVar+":");
-}
-
-//count lines that arent newlines or end with ":"
-let lines = finalCode.split("\n");
-for(let i = 0; i < lines.length; i++) {
-    if(lines[i].length > 0 && lines[i].charAt(lines[i].length - 1) != ":") {
-        lineCount++;
-    }
-}
-//console.log("line count: " + lineCount);
-
-return {code: finalCode, lineCount: lineCount, };
+return {code: drawcodes.join("\n"), lineCount: 0, };
 }
 
 
@@ -556,7 +438,7 @@ buildBtn.addEventListener("click", ()=>{
     let result = buildLib(0);
     //run buildLib 1000 times, find the one with the lowest average instructions
     let bestResult = result;
-    for(let i = 0; i < 1000; i++) {
+    for(let i = 0; i < 2; i++) {
         result = buildLib(0);
         //call render every time to update the UI
         if(result.averageInstructions < bestResult.averageInstructions) {
