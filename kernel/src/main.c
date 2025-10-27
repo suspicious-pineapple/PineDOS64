@@ -126,14 +126,25 @@ void kmain(void) {
     kglobals.framebuffer.pitch = framebuffer->pitch;
     kglobals.framebuffer.width = framebuffer->width;
     kglobals.framebuffer.height = framebuffer->height;
+    kglobals.console.columns = console_max_columns;
+    kglobals.console.rows = console_max_rows;
+
+            
+    put_char(63,15,15,0xFF);
+    render_console();
+
 
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
     for (size_t i = 0; i < 100; i++) {
         //volatile uint32_t *fb_ptr = framebuffer->address;
-        kglobals.framebuffer.fb_ptr = framebuffer->address;
+        kglobals.framebuffer.address = framebuffer->address;
         
-        kglobals.framebuffer.fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
-        put_pixel(i,i,0xFFFFFF);
+        //kglobals.framebuffer.fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
+        //put_pixel(i,i,0xFFFFFF);
+        draw_character(i,(i%30)*16,14*((i>>5)),0xFFFFFF,2);
+                put_rect(40,40,15,15,0xDDDD);
+
+
     }
 
     // We're done, just hang...

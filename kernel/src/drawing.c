@@ -107,18 +107,68 @@ uint64_t character_bitmaps[128] = {
 
 
 void put_pixel(uint16_t x, uint16_t y, uint32_t color){
-    //uint64_t index = y * kglobals.framebuffer.pitch + x;
+    uint64_t index = y * (kglobals.framebuffer.pitch/4) + x;
 
-    kglobals.framebuffer.fb_ptr[80] = color;
+    kglobals.framebuffer.address[index] = color;
 
 
-    //kglobals.framebuffer.address[y * (kglobals.framebuffer.pitch / 4) + x] = color;
+
+}
+
+void put_rect(uint16_t x, uint16_t y, uint16_t width,uint16_t height,uint32_t color){
+
+    uint64_t index = y * (kglobals.framebuffer.pitch/4) + x;
+    for(uint16_t yoffset=0; yoffset < height; yoffset++){
+        for(uint16_t xoffset=0; xoffset < width;xoffset++){
+            kglobals.framebuffer.address[index] = color;
+            index++;
+        }
+        index+=(kglobals.framebuffer.pitch/4)-width;
+    }
+
+
+
 
 }
 
 
 
 
+void draw_character(uint8_t character, uint16_t x, uint16_t y, uint32_t color, uint8_t scale){
+    uint64_t bitmap = character_bitmaps[character+32];
+    for(uint8_t yoffset = 0; yoffset < 7; yoffset++){
+        for(uint8_t xoffset=0; xoffset < 5; xoffset++){
+            if(bitmap & 1){
+                put_rect(x+xoffset*scale,y+yoffset*scale,scale,scale,color);
+            }
+            bitmap = bitmap >> 1;
+        }
+        bitmap = bitmap >> 3;
+
+    }
+}
+
+void render_console(){
+    for(uint16_t row = 0; row < kglobals.console.rows;row++){
+        for(uint16_t column = 0; column < kglobals.console.columns; column++)
+            {
+                uint8_t color = kglobals.console.buffer[row*kglobals.console.columns + column] >> 8;
+                uint8_t character = kglobals.console.buffer[row*kglobals.console.columns + column] & 0b1111111;
+                //draw_character(character, column*5,row*7, 0xFFFFFF, 1);
+                uint32_t i = 26;
+                //draw_character(i,(i%30)*16,14*((i>>5)),0xFFFFFF,2);
+
+            }
+    }
+
+}
+
+
+void put_char(uint8_t character, uint16_t column, uint16_t row, uint8_t tcolor){
+    
+    kglobals.console.buffer[kglobals.console.columns*row+column] = 0xFF00 | character;
+
+}
 
 
 
