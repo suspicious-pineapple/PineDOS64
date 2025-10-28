@@ -1,4 +1,6 @@
-#pragma once
+
+#ifndef KERNEL_H
+#define KERNEL_H
 
 #define console_max_columns 69
 #define console_max_rows 42
@@ -32,3 +34,5 @@ typedef struct kernel_values_t {
 } kernel_values_t;
 
 extern kernel_values_t kglobals;
+
+#endif

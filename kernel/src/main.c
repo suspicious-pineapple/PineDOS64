@@ -104,6 +104,7 @@ static void hcf(void) {
 // The following will be our kernel's entry point.
 // If renaming kmain() to something else, make sure to change the
 // linker script accordingly.
+
 kernel_values_t kglobals;
 
 void kmain(void) {
@@ -131,7 +132,10 @@ void kmain(void) {
 
             
     put_char(63,15,15,0xFF);
+    
     render_console();
+
+    put_rect(40,40,15,15,0xDDDD);
 
 
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
@@ -142,7 +146,6 @@ void kmain(void) {
         //kglobals.framebuffer.fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
         //put_pixel(i,i,0xFFFFFF);
         draw_character(i,(i%30)*16,14*((i>>5)),0xFFFFFF,2);
-                put_rect(40,40,15,15,0xDDDD);
 
 
     }

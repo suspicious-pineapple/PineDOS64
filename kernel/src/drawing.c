@@ -149,6 +149,8 @@ void draw_character(uint8_t character, uint16_t x, uint16_t y, uint32_t color, u
 }
 
 void render_console(){
+    put_rect(40,40,15,15,0xDDDD);
+    return;
     for(uint16_t row = 0; row < kglobals.console.rows;row++){
         for(uint16_t column = 0; column < kglobals.console.columns; column++)
             {
