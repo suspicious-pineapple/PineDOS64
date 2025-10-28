@@ -18,7 +18,7 @@ endif
 
 # User controllable toolchain and toolchain prefix.
 TOOLCHAIN :=
-TOOLCHAIN_PREFIX :=
+TOOLCHAIN_PREFIX :=~/repos/PineDOS64/cross/bin/bin/x86_64-elf-
 ifneq ($(TOOLCHAIN),)
     ifeq ($(TOOLCHAIN_PREFIX),)
         TOOLCHAIN_PREFIX := $(TOOLCHAIN)-
