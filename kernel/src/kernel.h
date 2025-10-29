@@ -18,8 +18,13 @@ typedef struct framebuffer_t {
     uint64_t pitch;
 } framebuffer_t;
 
+typedef struct character_entry {
+    uint8_t character;
+    
+} character_entry_t;
+
 typedef struct console_buffer_t {
-    uint16_t buffer[console_max_columns*console_max_rows];
+    uint32_t buffer[console_max_columns*console_max_rows];
     uint16_t rows;
     uint16_t columns;
     uint16_t cursor_col;

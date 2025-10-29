@@ -124,28 +124,34 @@ void kmain(void) {
     struct limine_framebuffer *framebuffer = framebuffer_request.response->framebuffers[0];
     //kglobals.framebuffer.address = (size_t)framebuffer->address;
     
+    kglobals.framebuffer.address = framebuffer->address;
     kglobals.framebuffer.pitch = framebuffer->pitch;
     kglobals.framebuffer.width = framebuffer->width;
     kglobals.framebuffer.height = framebuffer->height;
     kglobals.console.columns = console_max_columns;
     kglobals.console.rows = console_max_rows;
 
+
             
-    put_char(63,15,15,0xFF);
+    put_char('a',1,1,0xFF);
+    put_char('m',2,1,0xFF);
+    put_char('o',3,1,0xFF);
+    put_char('g',4,1,0xFF);
+    put_char('u',5,1,0xFF);
+    put_char('s',6,1,0xFF);
     
+    put_rect(40,40,15,15,0xDDDD);
     render_console();
 
-    put_rect(40,40,15,15,0xDDDD);
 
 
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
     for (size_t i = 0; i < 100; i++) {
         //volatile uint32_t *fb_ptr = framebuffer->address;
-        kglobals.framebuffer.address = framebuffer->address;
         
         //kglobals.framebuffer.fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
         //put_pixel(i,i,0xFFFFFF);
-        draw_character(i,(i%30)*16,14*((i>>5)),0xFFFFFF,2);
+        //draw_character(i,(i%30)*16,14*((i>>5)),0xFFFFFF,2);
 
 
     }
