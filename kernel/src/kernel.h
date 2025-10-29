@@ -20,7 +20,13 @@ typedef struct framebuffer_t {
 
 typedef struct character_entry {
     uint8_t character;
-    
+    uint8_t red;
+    uint8_t green;
+    uint8_t blue;
+    uint8_t bg_red;
+    uint8_t bg_green;
+    uint8_t bg_blue;
+
 } character_entry_t;
 
 typedef struct console_buffer_t {

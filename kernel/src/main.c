@@ -143,7 +143,7 @@ void kmain(void) {
     put_rect(40,40,15,15,0xDDDD);
     render_console();
 
-
+    uint8_t heap[100000000];
 
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
     for (size_t i = 0; i < 100; i++) {
