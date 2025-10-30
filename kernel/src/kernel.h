@@ -20,21 +20,20 @@ typedef struct framebuffer_t {
 
 typedef struct character_entry {
     uint8_t character;
-    uint8_t red;
-    uint8_t green;
-    uint8_t blue;
-    uint8_t bg_red;
-    uint8_t bg_green;
-    uint8_t bg_blue;
-
+    uint8_t flags;
+    uint32_t foreground;
+    uint32_t background;
 } character_entry_t;
 
 typedef struct console_buffer_t {
-    uint32_t buffer[console_max_columns*console_max_rows];
+    character_entry_t buffer[console_max_columns*console_max_rows];
     uint16_t rows;
     uint16_t columns;
     uint16_t cursor_col;
     uint16_t cursor_row;
+    uint32_t default_background;
+    uint32_t default_foreground;
+
 } console_buffer_t;
 
 

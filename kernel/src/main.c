@@ -130,6 +130,8 @@ void kmain(void) {
     kglobals.framebuffer.height = framebuffer->height;
     kglobals.console.columns = console_max_columns;
     kglobals.console.rows = console_max_rows;
+    kglobals.console.default_background = 0x6400A3;
+    kglobals.console.default_foreground = 0x00FF00;
 
 
             
@@ -140,7 +142,7 @@ void kmain(void) {
     put_char('u',5,1,0xFF);
     put_char('s',6,1,0xFF);
     
-    put_rect(40,40,15,15,0xDDDD);
+    draw_rect(40,40,15,15,0xDDDD);
     render_console();
 
     uint8_t heap[100000000];

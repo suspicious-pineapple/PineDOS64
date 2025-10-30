@@ -134,13 +134,15 @@ void draw_rect(uint16_t x, uint16_t y, uint16_t width,uint16_t height,uint32_t c
 
 
 
-void draw_character(uint8_t character, uint16_t x, uint16_t y, uint32_t color, uint8_t scale){
+void draw_character(uint8_t character, uint16_t x, uint16_t y, uint32_t fgcolor, uint32_t bgcolor, uint8_t scale){
     if(character <= 32 || character >= 127){return;};
     uint64_t bitmap = character_bitmaps[character-32];
     for(uint8_t yoffset = 0; yoffset < 7; yoffset++){
         for(uint8_t xoffset=0; xoffset < 5; xoffset++){
             if(bitmap & 1){
-                draw_rect(x+xoffset*scale,y+yoffset*scale,scale,scale,color);
+                draw_rect(x+xoffset*scale,y+yoffset*scale,scale,scale,fgcolor);
+            } else {
+                draw_rect(x+xoffset*scale,y+yoffset*scale,scale,scale,bgcolor);
             }
             bitmap = bitmap >> 1;
         }
@@ -155,11 +157,11 @@ void render_console(){
     for(uint16_t row = 0; row < kglobals.console.rows;row++){
         for(uint16_t column = 0; column < kglobals.console.columns; column++)
             {
-                uint8_t color = kglobals.console.buffer[row*kglobals.console.columns + column] >> 8;
-                uint8_t character = kglobals.console.buffer[row*kglobals.console.columns + column] & 0b1111111;
-                if(character==0){continue;};
 
-                draw_character(character, column*5*2,row*7*2, 0xFFFFFF, 2);
+                character_entry_t character = kglobals.console.buffer[row*kglobals.console.columns + column];
+                if(character.character==0){continue;};
+
+                draw_character(character.character, column*5*2,row*7*2, character.foreground, character.background, 2);
                 //uint32_t i = 26;
                 //draw_character(i,(i%30)*16,14*((i>>5)),0xFFFFFF,2);
 
@@ -169,13 +171,17 @@ void render_console(){
 }
 
 
-void put_char(uint8_t character, uint16_t column, uint16_t row, uint8_t tcolor){
+void put_char(uint8_t character, uint16_t column, uint16_t row, uint32_t foreground, uint32_t background){
     
-    kglobals.console.buffer[kglobals.console.columns*row+column] = 0xFF00 | character;
+    kglobals.console.buffer[kglobals.console.columns*row+column].character = character;
+    kglobals.console.buffer[kglobals.console.columns*row+column].foreground = foreground;
+    kglobals.console.buffer[kglobals.console.columns*row+column].background = background;
 
 }
 
-void print_char(uint8_t character, uint16_t )
+void print_char(uint8_t character){
+    
+}
 
 
 
