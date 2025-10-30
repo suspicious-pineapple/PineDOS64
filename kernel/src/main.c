@@ -143,14 +143,15 @@ void kmain(void) {
     put_char('s',6,1,0xFF);
     
     draw_rect(40,40,15,15,0xDDDD);
+    print_string("String printing test passed!\n");
     render_console();
-
-    uint8_t heap[100000000];
+    //uint8_t heap[100000000];
 
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
     for (size_t i = 0; i < 100; i++) {
         //volatile uint32_t *fb_ptr = framebuffer->address;
-        
+        print_char('A');
+	render_console();
         //kglobals.framebuffer.fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
         //put_pixel(i,i,0xFFFFFF);
         //draw_character(i,(i%30)*16,14*((i>>5)),0xFFFFFF,2);

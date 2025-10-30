@@ -3,3 +3,4 @@
 *.iso
 *.hdd
 /cross/build-gcc
+/cross/bin

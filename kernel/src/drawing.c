@@ -135,7 +135,7 @@ void draw_rect(uint16_t x, uint16_t y, uint16_t width,uint16_t height,uint32_t c
 
 
 void draw_character(uint8_t character, uint16_t x, uint16_t y, uint32_t fgcolor, uint32_t bgcolor, uint8_t scale){
-    if(character <= 32 || character >= 127){return;};
+    if(character < 32 || character >= 127){return;};
     uint64_t bitmap = character_bitmaps[character-32];
     for(uint8_t yoffset = 0; yoffset < 7; yoffset++){
         for(uint8_t xoffset=0; xoffset < 5; xoffset++){
@@ -180,8 +180,30 @@ void put_char(uint8_t character, uint16_t column, uint16_t row, uint32_t foregro
 }
 
 void print_char(uint8_t character){
-    
+    if(character == '\n'){
+    	kglobals.console.cursor_col = 0;
+	kglobals.console.cursor_row++;
+	return;
+    };
+
+    put_char(character, kglobals.console.cursor_col, kglobals.console.cursor_row, kglobals.console.default_foreground, kglobals.console.default_background);
+    kglobals.console.cursor_col++;
+    if(kglobals.console.cursor_col > kglobals.console.columns){
+	kglobals.console.cursor_col = 0;
+	kglobals.console.cursor_row++;
+    }
+
 }
 
+void print_string(uint8_t* string){
+    uint32_t i = 0;
+    while(1){
+	if(string[i]==0){
+	    break;
+	}
+	print_char(string[i]);
+	i++;
+    }
 
+}
 
