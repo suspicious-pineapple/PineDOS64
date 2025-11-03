@@ -1,3 +1,4 @@
+#define LIMINE_API_REVISION 4
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -8,9 +9,8 @@
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
 // See specification for further info.
-
 __attribute__((used, section(".limine_requests")))
-static volatile LIMINE_BASE_REVISION(3);
+static volatile LIMINE_BASE_REVISION(4);
 
 // The Limine requests can be placed anywhere, but it is important that
 // the compiler does not optimise them away, so, usually, they should

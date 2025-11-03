@@ -5,7 +5,7 @@
 ARCH := x86_64
 
 # Default user QEMU flags. These are appended to the QEMU command calls.
-QEMUFLAGS := -m 2G -d int -no-reboot
+QEMUFLAGS := -m 7G -d int -no-reboot -bios /usr/share/OVMF/OVMF_CODE.fd -M q35
 
 override IMAGE_NAME := PineDOS64-$(ARCH)
 

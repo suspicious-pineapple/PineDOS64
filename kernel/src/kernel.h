@@ -5,6 +5,7 @@
 #define console_max_columns 69
 #define console_max_rows 42
 
+#define max_supported_memory 2^38
 
 
 
@@ -40,6 +41,8 @@ typedef struct console_buffer_t {
 typedef struct kernel_values_t {
     framebuffer_t framebuffer;
     console_buffer_t console;
+
+
 
 } kernel_values_t;
 

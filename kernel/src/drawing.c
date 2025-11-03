@@ -162,7 +162,7 @@ void render_console(console_buffer_t *console){
                 character_entry_t character = console->buffer[row*console->columns + column];
                 if(character.character==0){character.character=32;character.background=console->default_background;};
 
-                draw_character(character.character, column*(5+2)*2,row*(7+1)*2, character.foreground, character.background, 2);
+                draw_character(character.character, column*(5+1)*2,row*(7+1)*2, character.foreground, character.background, 2);
 
             }
     }
