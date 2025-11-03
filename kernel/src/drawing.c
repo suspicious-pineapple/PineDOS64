@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include "drawing.h"
 
 
 
@@ -39,32 +40,32 @@ uint64_t character_bitmaps[128] = {
 0x00020408040200,
 0x0400040810120c,
 0x1e011d151d110e,
-0x03020202120c00,
-0x1e100804040000,
-0x08080804000400,
-0x00001c03001f00,
-0x0f010101090000,
-0x00000015001f00,
-0x0808080e080808,
-0x0004041f001f00,
-0x04040400040404,
-0x00040004000400,
-0x04040415040404,
-0x020a02020a0202,
-0x1e101010120000,
-0x060c1810121200,
-0x060c1810101e00,
-0x0a02020a08080a,
-0x1f10101f000400,
-0x11000000000011,
-0x04040404040202,
-0x1000101010101f,
-0x000e000a000000,
-0x001f001f040400,
-0x00000a00040000,
-0x04040808120000,
-0x0a0a0a0a0a0a00,
-0x0a0a0a0a0a0400,
+0x11110e0a0a0404,
+0x0e12120e12120e,
+0x0c02020202020c,
+0x060a1212120a06,
+0x0e02020e02020e,
+0x0202020e02021e,
+0x0e11151d01010e,
+0x1212121e121212,
+0x0e04040404040e,
+0x040a0808080808,
+0x11090502050911,
+0x0e020202020202,
+0x11111115151b11,
+0x11110915121100,
+0x0e111111110e00,
+0x0202021e12121e,
+0x16091511110e00,
+0x11110907090907,
+0x0c12100e02120c,
+0x0404040404041f,
+0x0c121212121200,
+0x04040a11110000,
+0x0a0a0a15151511,
+0x11110a040a1100,
+0x04040404040a11,
+0x1f01020408100f,
 0x0e02020202020e,
 0x08080804040202,
 0x0e08080808080e,
@@ -151,19 +152,17 @@ void draw_character(uint8_t character, uint16_t x, uint16_t y, uint32_t fgcolor,
     }
 }
 
-void render_console(){
+void render_console(console_buffer_t *console){
 
     
-    for(uint16_t row = 0; row < kglobals.console.rows;row++){
-        for(uint16_t column = 0; column < kglobals.console.columns; column++)
+    for(uint16_t row = 0; row < console->rows;row++){
+        for(uint16_t column = 0; column < console->columns; column++)
             {
 
-                character_entry_t character = kglobals.console.buffer[row*kglobals.console.columns + column];
-                if(character.character==0){continue;};
+                character_entry_t character = console->buffer[row*console->columns + column];
+                if(character.character==0){character.character=32;character.background=console->default_background;};
 
-                draw_character(character.character, column*5*2,row*7*2, character.foreground, character.background, 2);
-                //uint32_t i = 26;
-                //draw_character(i,(i%30)*16,14*((i>>5)),0xFFFFFF,2);
+                draw_character(character.character, column*(5+2)*2,row*(7+1)*2, character.foreground, character.background, 2);
 
             }
     }
@@ -171,39 +170,60 @@ void render_console(){
 }
 
 
-void put_char(uint8_t character, uint16_t column, uint16_t row, uint32_t foreground, uint32_t background){
+void put_char(console_buffer_t *console, uint8_t character, uint16_t column, uint16_t row, uint32_t foreground, uint32_t background){
     
-    kglobals.console.buffer[kglobals.console.columns*row+column].character = character;
-    kglobals.console.buffer[kglobals.console.columns*row+column].foreground = foreground;
-    kglobals.console.buffer[kglobals.console.columns*row+column].background = background;
+    console->buffer[console->columns*row+column].character = character;
+    console->buffer[console->columns*row+column].foreground = foreground;
+    console->buffer[console->columns*row+column].background = background;
 
 }
 
-void print_char(uint8_t character){
-    if(character == '\n'){
-    	kglobals.console.cursor_col = 0;
-	kglobals.console.cursor_row++;
+void print_char(console_buffer_t *console, uint8_t character){
+    if(character == '\r'){
+    	console->cursor_col = 0;
 	return;
     };
+    if(character=='\n'){
+        console->cursor_row++;
+        return;
+    };
 
-    put_char(character, kglobals.console.cursor_col, kglobals.console.cursor_row, kglobals.console.default_foreground, kglobals.console.default_background);
-    kglobals.console.cursor_col++;
-    if(kglobals.console.cursor_col > kglobals.console.columns){
-	kglobals.console.cursor_col = 0;
-	kglobals.console.cursor_row++;
+    put_char(console, character, console->cursor_col, console->cursor_row, console->default_foreground, console->default_background);
+    console->cursor_col++;
+    if(console->cursor_col > console->columns){
+	console->cursor_col = 0;
+	console->cursor_row++;
     }
 
 }
 
-void print_string(uint8_t* string){
+void scroll_console(console_buffer_t *console){
+
+};
+
+
+void print_string(console_buffer_t *console, uint8_t* string){
     uint32_t i = 0;
     while(1){
 	if(string[i]==0){
 	    break;
 	}
-	print_char(string[i]);
+	print_char(console, string[i]);
 	i++;
     }
 
-}
+};
 
+
+void print_hex64(console_buffer_t* console, uint64_t number){
+    for(uint8_t i = 0; i < 8; i++){
+        print_hex_byte(console, ((uint8_t*)(&number))[7-i]);
+    }
+};
+void print_hex_byte(console_buffer_t* console, uint8_t number){
+
+    uint8_t nibbles[16] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+    print_char(console, nibbles[number>>4]);
+    print_char(console, nibbles[number&0x0F]);
+    return;
+}

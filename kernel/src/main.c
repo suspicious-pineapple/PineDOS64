@@ -4,6 +4,7 @@
 #include <limine.h>
 #include "kernel.h"
 #include "drawing.h"
+#include "memory.h"
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
 // See specification for further info.
@@ -21,6 +22,10 @@ static volatile struct limine_framebuffer_request framebuffer_request = {
     .id = LIMINE_FRAMEBUFFER_REQUEST,
     .revision = 0
 };
+
+
+
+
 
 // Finally, define the start and end markers for the Limine requests.
 // These can also be moved anywhere, to any .c file, as seen fit.
@@ -135,26 +140,29 @@ void kmain(void) {
 
 
             
-    put_char('a',1,1,0xFF);
-    put_char('m',2,1,0xFF);
-    put_char('o',3,1,0xFF);
-    put_char('g',4,1,0xFF);
-    put_char('u',5,1,0xFF);
-    put_char('s',6,1,0xFF);
+    put_char(&kglobals.console, 'a',1,1,0xFF00FF, 0xF0FF0A);
+    put_char(&kglobals.console, 'm',2,1,0xFFFF00, 0x10F02F);
+    put_char(&kglobals.console, 'o',3,1,0xF0FFFF, 0x0AF0DA);
+    put_char(&kglobals.console, 'g',4,1,0x0000FF, 0x000000);
+    put_char(&kglobals.console, 'u',5,1,0xFFFFFF, 0x123456);
+    put_char(&kglobals.console, 's',6,1,0xF0FF0F, 0x12213A);
     
+    dump_memmap();
+
     draw_rect(40,40,15,15,0xDDDD);
-    print_string("String printing test passed!\n");
-    render_console();
+    print_string(&kglobals.console, "String printing test passed!\r\n");
+    print_hex64(&kglobals.console, 0x1234567898765432);
+    render_console(&kglobals.console);
     //uint8_t heap[100000000];
 
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
     for (size_t i = 0; i < 100; i++) {
         //volatile uint32_t *fb_ptr = framebuffer->address;
-        print_char('A');
-	render_console();
+        print_char(&kglobals.console, 'A');
+	    render_console(&kglobals.console);
         //kglobals.framebuffer.fb_ptr[i * (framebuffer->pitch / 4) + i] = 0xffffff;
         //put_pixel(i,i,0xFFFFFF);
-        //draw_character(i,(i%30)*16,14*((i>>5)),0xFFFFFF,2);
+        //draw_character(i,(i%30)*16,14*((i>>5)),0xFFFFFF,0xFF00FF,2);
 
 
     }
