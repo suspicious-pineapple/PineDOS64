@@ -105,8 +105,26 @@ uint64_t page_bitmap[(max_supported_memory / 4096 / 64)];
 
 
 void page_bitmap_set(size_t addr){
+    size_t page_num = addr >> 12;
+    uint8_t bit_num = page_num & 0x3F;
+    size_t entry_num = page_num >> 6;
+
+    uint64_t entry = page_bitmap[entry_num];
+    entry = entry | (1) << (bit_num);
+    page_bitmap[addr] = entry;
+}
+uint8_t page_bitmap_get(size_t addr){
+    size_t page_num = addr >> 12;
+    uint8_t bit_num = page_num & 0x3F;
+    size_t entry_num = page_num >> 6;
+
+    uint64_t entry = page_bitmap[entry_num];
+    entry = entry | (1) << (bit_num);
+    return entry;
+
 
 }
+
 
 
 
