@@ -2,8 +2,8 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-#define console_max_columns 69
-#define console_max_rows 42
+#define console_max_columns 144
+#define console_max_rows 80
 
 #define max_supported_memory 2^38
 
@@ -34,15 +34,13 @@ typedef struct console_buffer_t {
     uint16_t cursor_row;
     uint32_t default_background;
     uint32_t default_foreground;
-
+    uint8_t display_scale;
 } console_buffer_t;
 
 
 typedef struct kernel_values_t {
     framebuffer_t framebuffer;
     console_buffer_t console;
-
-
 
 } kernel_values_t;
 

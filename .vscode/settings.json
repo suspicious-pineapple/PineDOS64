@@ -1,5 +1,8 @@
 {
     "files.associations": {
-        "stddef.h": "c"
+        "stddef.h": "c",
+        "cstdint": "c",
+        "format": "c",
+        "compare": "c"
     }
 }

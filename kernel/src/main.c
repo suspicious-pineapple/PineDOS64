@@ -137,6 +137,7 @@ void kmain(void) {
     kglobals.console.rows = console_max_rows;
     kglobals.console.default_background = 0x6400A3;
     kglobals.console.default_foreground = 0x00FF00;
+    kglobals.console.display_scale = 1;
 
 
             
@@ -148,6 +149,9 @@ void kmain(void) {
     put_char(&kglobals.console, 's',6,1,0xF0FF0F, 0x12213A);
     
     dump_memmap();
+
+    init_gdt();
+    
 
     draw_rect(40,40,15,15,0xDDDD);
     print_string(&kglobals.console, "String printing test passed!\r\n");
@@ -168,7 +172,7 @@ void kmain(void) {
     }
 
     // We're done, just hang...
-    hcf();
+    while(1){};
 }
 
 

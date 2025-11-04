@@ -158,11 +158,12 @@ void render_console(console_buffer_t *console){
     for(uint16_t row = 0; row < console->rows;row++){
         for(uint16_t column = 0; column < console->columns; column++)
             {
-
+                
+                draw_rect(column*(5+1)*console->display_scale,row*(7+1)*console->display_scale,7*console->display_scale,9*console->display_scale,0x2F0F4F);
                 character_entry_t character = console->buffer[row*console->columns + column];
                 if(character.character==0){character.character=32;character.background=console->default_background;};
 
-                draw_character(character.character, column*(5+1)*2,row*(7+1)*2, character.foreground, character.background, 2);
+                draw_character(character.character, column*(5+1)*console->display_scale,row*(7+1)*console->display_scale, character.foreground, character.background, console->display_scale);
 
             }
     }
@@ -202,7 +203,7 @@ void scroll_console(console_buffer_t *console){
 };
 
 
-void print_string(console_buffer_t *console, uint8_t* string){
+void print_string(console_buffer_t *console, char* string){
     uint32_t i = 0;
     while(1){
 	if(string[i]==0){

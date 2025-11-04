@@ -16,6 +16,32 @@ ret
 
 global load_gdt
 load_gdt:
-lgdt [rdi]
+   MOV   [gdtr_desc], DI
+   MOV   [gdtr_desc+2], RSI
+   LGDT  [gdtr_desc]
+   RET
+
+;global load_gdt
+;load_gdt:
+;lgdt [rdi]
+
 ret
 
+global load_idt
+load_idt:
+lidt [rdi]
+ret
+
+
+
+
+global load_tss
+load_tss:
+ltr di
+ret
+
+
+
+section .data
+gdtr_desc DW 0 ; For limit storage
+     DQ 0 ; For base storage
