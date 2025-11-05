@@ -1,3 +1,4 @@
+#pragma once
 #include <stdint.h>
 void dump_memmap();
 uint8_t page_bitmap_get(size_t addr);
