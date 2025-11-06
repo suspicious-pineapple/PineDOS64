@@ -3,7 +3,7 @@
 #include "memory.h"
 #include "drawing.h"
 #include <stdbool.h>
-
+#include "system.h"
 
 
 __attribute__((used, section(".limine_requests")))
@@ -47,7 +47,10 @@ void dump_memmap(){
                 print_string(&kglobals.console, " usable, ");
 
                 for(uint64_t j = 0; j < length; j+=4096){
-                    page_bitmap_set(j,1);
+
+                    
+                    page_bitmap_set(j+base,1);
+                    
                 }
                 
                 break;
@@ -58,6 +61,16 @@ void dump_memmap(){
             }
             case LIMINE_MEMMAP_ACPI_RECLAIMABLE       : {
                 print_string(&kglobals.console, " ACPI reclaimable");
+
+                //uint64_t signature = 'R' | ('S' << 8) | ('D' << 16) | (' ' << 24) | ('P' << 32) | ('T' << 40) | ('R' << 48) | (' ' << 56);
+                
+                for(uint64_t j = base; j < base+length; j+=8){
+                    if( *(uint64_t*)(j|0xFFFF800000000000) == 0x2052545020445352){
+                        print_string(&kglobals.console, "\r\nfound XSDT at:");
+                        print_hex64(&kglobals.console, j|0xFFFF800000000000);
+                    }
+                }
+
                 break;
             }
             case LIMINE_MEMMAP_ACPI_NVS               : {
@@ -115,11 +128,13 @@ void page_bitmap_set(size_t addr, uint8_t state){
     size_t page_num = addr >> 12;
     uint8_t bit_num = page_num & 0x3F;
     size_t entry_num = page_num >> 6;
+    entry_num = 400;
 
     uint64_t entry = page_bitmap[entry_num];
     entry = (entry& (~(1<<bit_num))) | ((state&1)<<bit_num);
-    page_bitmap[addr] = entry;
+    page_bitmap[entry_num] = entry;
 }
+
 uint8_t page_bitmap_get(size_t addr){
     size_t page_num = addr >> 12;
     uint8_t bit_num = page_num & 0x3F;
@@ -191,11 +206,6 @@ void init_gdt(){
     set_gdt_system_entry(5,(uint64_t)&tss,0x68,0x89,0x0);
 
 
-    
-    
-    gdtr_t gdtr_val;
-    gdtr_val.size = 48-1;
-    gdtr_val.offset = (uint64_t)gdt;
     
     load_gdt(47, (uint64_t)&gdt);
     //load_tss(5*8);

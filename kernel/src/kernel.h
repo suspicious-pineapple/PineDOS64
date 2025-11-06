@@ -2,10 +2,10 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-#define console_max_columns 144
-#define console_max_rows 80
+#define console_max_columns 72
+#define console_max_rows 40
 
-#define max_supported_memory 2^38
+#define max_supported_memory 274877906944
 
 
 
@@ -19,7 +19,7 @@ typedef struct framebuffer_t {
     uint64_t pitch;
 } framebuffer_t;
 
-typedef struct character_entry {
+typedef struct __attribute__((packed)) character_entry {
     uint8_t character;
     uint8_t flags;
     uint32_t foreground;
@@ -41,9 +41,18 @@ typedef struct console_buffer_t {
 typedef struct kernel_values_t {
     framebuffer_t framebuffer;
     console_buffer_t console;
-
+    uint64_t MADT;
 } kernel_values_t;
 
 extern kernel_values_t kglobals;
+
+
+
+void *memcpy(void *restrict dest, const void *restrict src, size_t n);
+void *memmove(void *restrict dest, const void *restrict src, size_t n);
+
+
+
+
 
 #endif

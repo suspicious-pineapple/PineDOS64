@@ -12,3 +12,5 @@ typedef struct  __attribute__((packed, aligned(16))) gdtr {
 
 extern void load_gdt(uint16_t size, uint64_t addr);
 extern void load_tss(uint16_t);
+extern void set_cr3(uint64_t);
+extern uint64_t get_cr3();

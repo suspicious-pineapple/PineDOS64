@@ -137,7 +137,7 @@ void kmain(void) {
     kglobals.console.rows = console_max_rows;
     kglobals.console.default_background = 0x6400A3;
     kglobals.console.default_foreground = 0x00FF00;
-    kglobals.console.display_scale = 1;
+    kglobals.console.display_scale = 2;
 
 
             
@@ -151,7 +151,7 @@ void kmain(void) {
     dump_memmap();
 
     init_gdt();
-    
+
 
     draw_rect(40,40,15,15,0xDDDD);
     print_string(&kglobals.console, "String printing test passed!\r\n");
@@ -160,7 +160,7 @@ void kmain(void) {
     //uint8_t heap[100000000];
 
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
-    for (size_t i = 0; i < 100; i++) {
+    for (size_t i = 0; i < 500; i++) {
         //volatile uint32_t *fb_ptr = framebuffer->address;
         print_char(&kglobals.console, 'A');
 	    render_console(&kglobals.console);

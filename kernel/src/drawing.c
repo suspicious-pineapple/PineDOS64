@@ -180,26 +180,54 @@ void put_char(console_buffer_t *console, uint8_t character, uint16_t column, uin
 }
 
 void print_char(console_buffer_t *console, uint8_t character){
+
+    
+
+
     if(character == '\r'){
     	console->cursor_col = 0;
 	return;
     };
+    
+
+    
     if(character=='\n'){
-        console->cursor_row++;
-        return;
+    scroll_console(console);  
+    return;
     };
+
 
     put_char(console, character, console->cursor_col, console->cursor_row, console->default_foreground, console->default_background);
     console->cursor_col++;
+
     if(console->cursor_col > console->columns){
-	console->cursor_col = 0;
-	console->cursor_row++;
+        scroll_console(console);
+        console->cursor_col = 0;
     }
+    
 
 }
 
 void scroll_console(console_buffer_t *console){
 
+    if(console->cursor_row+2 < console->rows){
+        console->cursor_row++;
+        return;
+    }
+
+
+
+    for(uint16_t y = 1; y < console->rows; y++){
+        for(uint16_t x=0;x<console->columns;x++){
+
+                console->buffer[console->columns*(y-1)+x].character = console->buffer[console->columns*(y)+x].character;
+                console->buffer[console->columns*(y-1)+x].foreground = console->buffer[console->columns*(y)+x].foreground;
+                console->buffer[console->columns*(y-1)+x].background = console->buffer[console->columns*(y)+x].background;
+
+        }
+    }
+
+    
 };
 
 
