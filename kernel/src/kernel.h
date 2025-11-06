@@ -11,7 +11,6 @@
 
 #include <stdint.h>
 #include <stddef.h>
-
 typedef struct framebuffer_t {
     volatile uint32_t *address;
     uint64_t width;
