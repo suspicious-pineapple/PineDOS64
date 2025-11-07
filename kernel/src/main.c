@@ -6,6 +6,7 @@
 #include "kernel.h"
 #include "drawing.h"
 #include "memory.h"
+#include "system.h"
 // Set the base revision to 3, this is recommended as this is the latest
 // base revision described by the Limine boot protocol specification.
 // See specification for further info.
@@ -151,7 +152,7 @@ void kmain(void) {
     dump_memmap();
 
     init_gdt();
-
+    init_system();
 
     draw_rect(40,40,15,15,0xDDDD);
     print_string(&kglobals.console, "String printing test passed!\r\n");

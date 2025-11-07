@@ -3,6 +3,7 @@
         "stddef.h": "c",
         "cstdint": "c",
         "format": "c",
-        "compare": "c"
+        "compare": "c",
+        "*.inc": "c"
     }
 }

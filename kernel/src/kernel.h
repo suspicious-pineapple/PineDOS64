@@ -40,7 +40,6 @@ typedef struct console_buffer_t {
 typedef struct kernel_values_t {
     framebuffer_t framebuffer;
     console_buffer_t console;
-    uint64_t MADT;
 } kernel_values_t;
 
 extern kernel_values_t kglobals;

@@ -33,19 +33,19 @@ struct ACPISDTHeader {
 
 
 struct XSDT {
-  struct ACPISDTHeader h;
-  uint64_t PointerToOtherSDT[(h.Length - sizeof(h)) / 8];
-};
+  struct ACPISDTHeader header;
+  uint64_t PointerToOtherSDT[];
+} __attribute__ ((packed));
 
 
 typedef struct sysinfo {
-    struct XSDP xsdp;
-    struct XSDT xsdt;
+    struct XSDP* xsdp;
+    struct XSDT* xsdt;
     
 } sysinfo_t;
 
-
-extern sysinfo_t system;
+void init_system();
+extern volatile sysinfo_t system;
 
 
 
