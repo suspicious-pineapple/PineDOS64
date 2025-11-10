@@ -66,9 +66,9 @@ void dump_memmap(){
                 
                 for(uint64_t j = base; j < base+length; j+=8){
                     if( *(uint64_t*)(j|0xFFFF800000000000) == 0x2052545020445352){
-                        print_string(&kglobals.console, "\r\nfound XSDT at:");
+                        print_string(&kglobals.console, "\r\nfound XSDP at:");
                         print_hex64(&kglobals.console, j|0xFFFF800000000000);
-                        system.xsdp = (struct XSDP*)((j+8)|0xFFFF800000000000);
+                        system.xsdp = (struct XSDP*)((j)|0xFFFF800000000000);
                     }
                 }
 

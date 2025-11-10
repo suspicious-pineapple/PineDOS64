@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
 
-struct XSDP {
+struct __attribute__((packed)) XSDP {
  char signature[8];
  uint8_t checksum;
  char oem_id[6];
@@ -11,10 +11,10 @@ struct XSDP {
 
  uint32_t length;
  uint64_t xsdt_addr;
-
+//
  uint8_t extended_checksum;
  uint8_t reserved[3];
-} __attribute__ ((packed));
+};
 
 
 //stolen from osdev.wiki, dont tell anyone
@@ -28,7 +28,7 @@ struct ACPISDTHeader {
   uint32_t OEMRevision;
   uint32_t CreatorID;
   uint32_t CreatorRevision;
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 
 

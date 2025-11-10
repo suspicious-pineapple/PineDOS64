@@ -2,8 +2,8 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-#define console_max_columns 72
-#define console_max_rows 40
+#define console_max_columns 70
+#define console_max_rows 45
 
 #define max_supported_memory 274877906944
 

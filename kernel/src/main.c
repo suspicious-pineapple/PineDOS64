@@ -161,7 +161,7 @@ void kmain(void) {
     //uint8_t heap[100000000];
 
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
-    for (size_t i = 0; i < 500; i++) {
+    for (size_t i = 0; i < 122; i++) {
         //volatile uint32_t *fb_ptr = framebuffer->address;
         print_char(&kglobals.console, 'A');
 	    render_console(&kglobals.console);
