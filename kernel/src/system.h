@@ -16,6 +16,15 @@ struct __attribute__((packed)) XSDP {
  uint8_t reserved[3];
 };
 
+struct __attribute__((packed)) RSDP {
+  char signature[8];
+  uint8_t checksum;
+  char oem_id[6];
+
+  uint8_t revision;
+  uint32_t rsdt_addr;
+};
+
 
 //stolen from osdev.wiki, dont tell anyone
 struct ACPISDTHeader {

@@ -13,4 +13,5 @@ void print_string(console_buffer_t *console, char* string);
 void print_hex64(console_buffer_t* console, uint64_t number);
 void print_hex_byte(console_buffer_t* console, uint8_t number);
 void scroll_console(console_buffer_t *console);
+void hex_dump(console_buffer_t* console, size_t start, size_t length);
 #endif

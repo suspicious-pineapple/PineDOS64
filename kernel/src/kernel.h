@@ -3,7 +3,7 @@
 #define KERNEL_H
 
 #define console_max_columns 70
-#define console_max_rows 45
+#define console_max_rows 43
 
 #define max_supported_memory 274877906944
 
@@ -43,7 +43,6 @@ typedef struct kernel_values_t {
 } kernel_values_t;
 
 extern kernel_values_t kglobals;
-
 
 
 void *memcpy(void *restrict dest, const void *restrict src, size_t n);

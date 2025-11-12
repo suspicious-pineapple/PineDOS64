@@ -217,7 +217,7 @@ void init_gdt(){
     
     load_gdt(47, (uint64_t)&gdt);
     //load_tss(5*8);
-    print_string(&kglobals.console, "\r\nGDT encoded: ");
+    print_string(&kglobals.console, "\r\nGDT at: ");
     print_hex64(&kglobals.console,(uint64_t)&gdt);
     //print_hex64(&kglobals.console, set_gdt_entry(1,0,0xFFFF,0x9A,0xA));
     print_string(&kglobals.console, "\r\n");

@@ -102,6 +102,7 @@ uint64_t character_bitmaps[128] = {
 0x00040404040400,
 0x06080810080806,
 0x00000815020000,
+0x0a150a150a150a
 };
 
 
@@ -136,7 +137,7 @@ void draw_rect(uint16_t x, uint16_t y, uint16_t width,uint16_t height,uint32_t c
 
 
 void draw_character(uint8_t character, uint16_t x, uint16_t y, uint32_t fgcolor, uint32_t bgcolor, uint8_t scale){
-    if(character < 32 || character >= 127){return;};
+    if(character < 32 || character >= 128){return;};
     uint64_t bitmap = character_bitmaps[character-32];
     for(uint8_t yoffset = 0; yoffset < 7; yoffset++){
         for(uint8_t xoffset=0; xoffset < 5; xoffset++){
@@ -159,11 +160,12 @@ void render_console(console_buffer_t *console){
         for(uint16_t column = 0; column < console->columns; column++)
             {
                 
-                draw_rect(column*(5+1)*console->display_scale,row*(7+1)*console->display_scale,7*console->display_scale,9*console->display_scale,0x2F0F4F);
+                draw_rect(column*(5+1)*console->display_scale,row*(7+2)*console->display_scale,7*console->display_scale,9*console->display_scale,0x2F0F4F);
                 character_entry_t character = console->buffer[row*console->columns + column];
                 if(character.character==0){character.character=32;character.background=console->default_background;};
+                if(character.character>126 || character.character<32){character.character=127;character.background=console->default_background;};
 
-                draw_character(character.character, column*(5+1)*console->display_scale,row*(7+1)*console->display_scale, character.foreground, character.background, console->display_scale);
+                draw_character(character.character, column*(5+1)*console->display_scale,row*(7+2)*console->display_scale, character.foreground, character.background, console->display_scale);
 
             }
     }
@@ -255,4 +257,38 @@ void print_hex_byte(console_buffer_t* console, uint8_t number){
     print_char(console, nibbles[number>>4]);
     print_char(console, nibbles[number&0x0F]);
     return;
+}
+
+
+
+
+
+
+void hex_dump(console_buffer_t* console, size_t start, size_t length){
+    uint8_t bytes_per_line = 8;
+    
+    for(size_t i = 0; i < length; i+=bytes_per_line){
+        print_string(console, "\r\n");
+        for(size_t j = 0; j < bytes_per_line; j++){
+            if(i+j > length){
+                //continue;
+            }
+            print_hex_byte(console, *(uint8_t*)(i+j+start));
+            print_char(console,' ');
+        }
+        print_char(console,' ');
+        print_char(console,' ');
+        print_char(console,' ');
+        for(size_t j = 0; j < bytes_per_line; j++){
+            if(i+j > length){
+                //continue;
+            }
+            print_char(console, *(uint8_t*)(i+j+start));
+        }
+        
+        
+    }
+    print_string(console, "\r\n");
+    print_string(console, "\r\n");
+
 }
