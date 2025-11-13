@@ -160,7 +160,7 @@ void render_console(console_buffer_t *console){
         for(uint16_t column = 0; column < console->columns; column++)
             {
                 
-                draw_rect(column*(5+1)*console->display_scale,row*(7+2)*console->display_scale,7*console->display_scale,9*console->display_scale,0x2F0F4F);
+                draw_rect(column*(5+1)*console->display_scale,row*(7+2)*console->display_scale,7*console->display_scale,9*console->display_scale,0x640095);
                 character_entry_t character = console->buffer[row*console->columns + column];
                 if(character.character==0){character.character=32;character.background=console->default_background;};
                 if(character.character>126 || character.character<32){character.character=127;character.background=console->default_background;};

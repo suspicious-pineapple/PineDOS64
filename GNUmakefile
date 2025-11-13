@@ -5,7 +5,7 @@
 ARCH := x86_64
 
 # Default user QEMU flags. These are appended to the QEMU command calls.
-QEMUFLAGS := -m 7G -d int -no-reboot -bios /usr/share/OVMF/OVMF_CODE.fd -M q35
+QEMUFLAGS := -m 7G -d int -no-reboot
 
 override IMAGE_NAME := PineDOS64-$(ARCH)
 
@@ -32,6 +32,8 @@ run-hdd: run-hdd-$(ARCH)
 run-x86_64: ovmf/ovmf-code-$(ARCH).fd $(IMAGE_NAME).iso
 	qemu-system-$(ARCH) \
 		-cdrom $(IMAGE_NAME).iso \
+		-M q35 \
+		-drive if=pflash,unit=0,format=raw,file=ovmf/ovmf-code-x86_64.fd,readonly=on \
 		$(QEMUFLAGS)
 
 .PHONY: run-hdd-x86_64
