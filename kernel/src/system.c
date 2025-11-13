@@ -42,13 +42,15 @@ void init_system(){
     print_hex_byte(&kglobals.console, checksum_rsdp);
     print_string(&kglobals.console, "\r\n");
     print_hex_byte(&kglobals.console, checksum_xsdp);
+    print_string(&kglobals.console, "\r\n");
 
     if(system.xsdp->revision != 0 && checksum_xsdp==0){
         print_string(&kglobals.console, "XSDP supported!\r\n");
-        
+        system.acpi_revision = 1;
         
     } else if(system.xsdp->revision==0 && checksum_rsdp==0){
         print_string(&kglobals.console, "Falling back to RSDP\r\n");
+        system.acpi_revision = 0;
         
     } else {
         print_string(&kglobals.console, "Something's fucked. where tf is the rsdp\r\n");

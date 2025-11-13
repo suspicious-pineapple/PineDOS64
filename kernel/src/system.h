@@ -28,15 +28,15 @@ struct __attribute__((packed)) RSDP {
 
 //stolen from osdev.wiki, dont tell anyone
 struct ACPISDTHeader {
-  char Signature[4];
-  uint32_t Length;
-  uint8_t Revision;
+  char signature[4];
+  uint32_t length;
+  uint8_t revision;
   uint8_t Checksum;
-  char OEMID[6];
-  char OEMTableID[8];
-  uint32_t OEMRevision;
-  uint32_t CreatorID;
-  uint32_t CreatorRevision;
+  char oem_id[6];
+  char oem_table_id[8];
+  uint32_t oem_revision;
+  uint32_t creator_id;
+  uint32_t creator_revision;
 } __attribute__((packed));
 
 
@@ -50,6 +50,7 @@ struct XSDT {
 typedef struct sysinfo {
     struct XSDP* xsdp;
     struct XSDT* xsdt;
+    uint8_t acpi_revision;
     
 } sysinfo_t;
 

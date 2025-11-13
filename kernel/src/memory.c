@@ -29,6 +29,7 @@ void dump_memmap(){
     print_hex64(&kglobals.console, executable_address_request.response->virtual_base);
     print_string(&kglobals.console, "\r\n");
     uint64_t total_usable = 0;
+    uint16_t pointercounter = 0;
     for(uint16_t i = 0; i < memmap_request.response->entry_count; i++){
         uint64_t type = memmap_request.response->entries[i]->type;
         uint64_t base = memmap_request.response->entries[i]->base;
@@ -41,7 +42,7 @@ void dump_memmap(){
         print_hex64(&kglobals.console, base);
         print_string(&kglobals.console, ",length:");
         print_hex64(&kglobals.console, length);
-
+        
         switch(type){
             case LIMINE_MEMMAP_USABLE: {
                 print_string(&kglobals.console, " usable, ");
@@ -64,11 +65,12 @@ void dump_memmap(){
 
                 //uint64_t signature = 'R' | ('S' << 8) | ('D' << 16) | (' ' << 24) | ('P' << 32) | ('T' << 40) | ('R' << 48) | (' ' << 56);
                 
-                for(uint64_t j = base; j < base+length; j+=8){
+                for(uint64_t j = base; j < base+length; j+=1){
                     if( *(uint64_t*)(j|0xFFFF800000000000) == 0x2052545020445352){
                         print_string(&kglobals.console, "\r\nfound XSDP at:");
                         print_hex64(&kglobals.console, j|0xFFFF800000000000);
                         system.xsdp = (struct XSDP*)((j)|0xFFFF800000000000);
+                        pointercounter++;
                     }
                 }
 
@@ -97,11 +99,13 @@ void dump_memmap(){
             }
             case LIMINE_MEMMAP_ACPI_TABLES             : {
                 print_string(&kglobals.console, " ACPI tables");
-                for(uint64_t j = base; j < base+length; j+=8){
+                for(uint64_t j = base; j < base+length; j+=1){
                     if( *(uint64_t*)(j|0xFFFF800000000000) == 0x2052545020445352){
                         print_string(&kglobals.console, "\r\nfound XSDP at:");
                         print_hex64(&kglobals.console, j|0xFFFF800000000000);
                         system.xsdp = (struct XSDP*)((j)|0xFFFF800000000000);
+                        pointercounter++;
+
                     }
                 }
                 break;
@@ -116,7 +120,7 @@ void dump_memmap(){
 
     }
         print_string(&kglobals.console, "Total usable: ");
-        print_hex64(&kglobals.console, total_usable);
+        print_hex64(&kglobals.console, pointercounter);
         print_string(&kglobals.console, "\r\n");
 
     render_console(&kglobals.console);
