@@ -47,10 +47,14 @@ void init_system(){
     if(system.xsdp->revision != 0 && checksum_xsdp==0){
         print_string(&kglobals.console, "XSDP supported!\r\n");
         system.acpi_revision = 1;
+        system.xsdt = (struct XSDT*) ((system.xsdp->xsdt_addr) | 0xFFFF800000000000);
         
     } else if(system.xsdp->revision==0 && checksum_rsdp==0){
-        print_string(&kglobals.console, "Falling back to RSDP\r\n");
+        print_string(&kglobals.console, "Falling back to RSDP\r\nActually, i lied. no acpi 1.0 support");
+        render_console(&kglobals.console);
+
         system.acpi_revision = 0;
+        while(1){};
         
     } else {
         print_string(&kglobals.console, "Something's fucked. where tf is the rsdp\r\n");
@@ -58,9 +62,15 @@ void init_system(){
         while(1){};
     }
 
-    
 
-    
+    uint32_t entries = (system.xsdt->header.length -sizeof(system.xsdt->header))/8;
+    char signature[5] = {0,0,0,0,0}; 
+    for(uint32_t i = 0; i < entries; i++){
+        struct ACPISDTHeader *header = (struct ACPISDTHeader*) (system.xsdt->other_sdt[i] | 0xFFFF800000000000);
+        memcpy(signature,header->signature,4);
+        print_string(&kglobals.console, "\r\n");
+        print_string(&kglobals.console, signature);
+    }
 
 
     print_string(&kglobals.console, "\r\n");
@@ -68,7 +78,16 @@ void init_system(){
 }
 
 
+size_t find_acpi_table(uint32_t signature){
 
+    uint32_t entries = (system.xsdt->header.length -sizeof(system.xsdt->header))/8;
+    for(uint32_t i = 0; i < entries; i++){
+
+    }
+    
+
+
+}
 
 
 
