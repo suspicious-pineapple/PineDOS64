@@ -75,17 +75,32 @@ void init_system(){
 
     print_string(&kglobals.console, "\r\n");
 
-}
+
+    print_string(&kglobals.console, "MADT:");
+    struct ACPISDTHeader* madt = find_acpi_table('CIPA');
 
 
-size_t find_acpi_table(uint32_t signature){
 
+};
+
+
+struct ACPISDTHeader* find_acpi_table(uint32_t signature){
+    print_string(&kglobals.console, "\r\n");
+    print_hex64(&kglobals.console, signature);
+    
     uint32_t entries = (system.xsdt->header.length -sizeof(system.xsdt->header))/8;
     for(uint32_t i = 0; i < entries; i++){
-
+        struct ACPISDTHeader *header = (struct ACPISDTHeader*) (system.xsdt->other_sdt[i] | 0xFFFF800000000000);
+            print_string(&kglobals.console, "\r\n");
+        print_hex64(&kglobals.console, *(uint32_t*)(header->signature));
+        uint8_t res = *(uint32_t*)(header->signature) == signature;
+        
+        if(res!=0){
+            return header;
+        }
     }
     
-
+    panic("searching for invalid acpi table");
 
 }
 

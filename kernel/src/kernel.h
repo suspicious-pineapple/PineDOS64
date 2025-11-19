@@ -43,7 +43,7 @@ typedef struct kernel_values_t {
 } kernel_values_t;
 
 extern kernel_values_t kglobals;
-
+void panic(char* reason);
 
 void *memcpy(void *restrict dest, const void *restrict src, size_t n);
 void *memmove(void *restrict dest, const void *restrict src, size_t n);

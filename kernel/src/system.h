@@ -56,6 +56,7 @@ typedef struct sysinfo {
 
 void init_system();
 extern volatile sysinfo_t system;
+struct ACPISDTHeader* find_acpi_table(uint32_t signature);
 
 
 

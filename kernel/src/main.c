@@ -158,7 +158,6 @@ void kmain(void) {
     print_string(&kglobals.console, "String printing test passed!\r\n");
     print_hex64(&kglobals.console, 0x1234567898765432);
     render_console(&kglobals.console);
-    //uint8_t heap[100000000];
 
     // Note: we assume the framebuffer model is RGB with 32-bit pixels.
     for (size_t i = 0; i < 122; i++) {
@@ -174,6 +173,12 @@ void kmain(void) {
 
     // We're done, just hang...
     while(1){};
+}
+
+void panic(char* reason){
+    print_string(&kglobals.console, "\r\n!!! kernel panic !!!\r\n");
+    print_string(&kglobals.console, reason);
+    render_console(&kglobals.console);
 }
 
 
