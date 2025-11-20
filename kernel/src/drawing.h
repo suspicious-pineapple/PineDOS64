@@ -11,6 +11,7 @@ void draw_rect(uint16_t x, uint16_t y, uint16_t width,uint16_t height,uint32_t c
 void print_char(console_buffer_t *console, uint8_t character);
 void print_string(console_buffer_t *console, char* string);
 void print_hex64(console_buffer_t* console, uint64_t number);
+void print_hex32(console_buffer_t* console, uint32_t number);
 void print_hex_byte(console_buffer_t* console, uint8_t number);
 void scroll_console(console_buffer_t *console);
 void hex_dump(console_buffer_t* console, size_t start, size_t length);

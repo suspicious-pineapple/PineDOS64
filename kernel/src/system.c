@@ -76,8 +76,71 @@ void init_system(){
     print_string(&kglobals.console, "\r\n");
 
 
-    print_string(&kglobals.console, "MADT:");
-    struct ACPISDTHeader* madt = find_acpi_table('CIPA');
+    
+    struct ACPISDTHeader* madt = find_acpi_table('APIC');
+    
+    print_string(&kglobals.console, "\r\nMADT:\r\n");
+    hex_dump(&kglobals.console, (size_t)madt + sizeof(struct ACPISDTHeader), madt->length - sizeof(struct ACPISDTHeader));
+    print_string(&kglobals.console, "----\r\n");
+
+
+    size_t next_madt_entry = (size_t)madt + sizeof(struct ACPISDTHeader);
+    size_t last_madt_entry = (size_t)madt + madt->length;
+
+    uint32_t local_apic_addr = *(uint32_t*)next_madt_entry;
+    next_madt_entry+=4;
+    uint32_t apic_flags = *(uint32_t*)next_madt_entry;
+    next_madt_entry+=4;
+
+    while(next_madt_entry<last_madt_entry){
+        print_string(&kglobals.console,"type:");
+        uint8_t type = *(uint8_t*)next_madt_entry;
+        print_hex_byte(&kglobals.console, type);
+        next_madt_entry+=1;
+        uint8_t length = *(uint8_t*)next_madt_entry;
+        print_string(&kglobals.console," length:");
+        print_hex_byte(&kglobals.console, length);
+        
+        size_t current_madt_data = next_madt_entry + 1; 
+        if(type==0){
+            print_string(&kglobals.console," ACPI ID:");
+            print_hex_byte(&kglobals.console, *(uint8_t*)(current_madt_data));
+            print_string(&kglobals.console," APIC ID:");
+            print_hex_byte(&kglobals.console, *(uint8_t*)(current_madt_data+1));
+            print_string(&kglobals.console," Flags:");
+            print_hex32(&kglobals.console, *(uint32_t*)(current_madt_data+2));
+
+        };
+        if(type==1){
+            print_string(&kglobals.console," IOAPIC ID:");
+            print_hex_byte(&kglobals.console, *(uint8_t*)(current_madt_data));
+            print_string(&kglobals.console," IOAPIC ADDR:");
+            print_hex32(&kglobals.console, *(uint32_t*)(current_madt_data+2));
+            print_string(&kglobals.console," GSI Base:");
+            print_hex32(&kglobals.console, *(uint32_t*)(current_madt_data+6));
+
+        };
+        if(type==2){
+            print_string(&kglobals.console," BUS SRC:");
+            print_hex_byte(&kglobals.console, *(uint8_t*)(current_madt_data));
+            print_string(&kglobals.console," IRQ SRC:");
+            print_hex_byte(&kglobals.console, *(uint8_t*)(current_madt_data+1));
+            print_string(&kglobals.console," GSI:");
+            print_hex32(&kglobals.console, (*(uint32_t*)(current_madt_data+2))&0xFFFF);
+            print_string(&kglobals.console," Flags:");
+            print_hex32(&kglobals.console, *(uint32_t*)(current_madt_data+4));
+
+        }
+
+
+
+
+        
+        
+        print_string(&kglobals.console,"\r\n");
+        next_madt_entry+=length-1;
+    }
+
 
 
 
@@ -85,15 +148,18 @@ void init_system(){
 
 
 struct ACPISDTHeader* find_acpi_table(uint32_t signature){
-    print_string(&kglobals.console, "\r\n");
-    print_hex64(&kglobals.console, signature);
+
+    uint32_t reverse_signature = (signature&0xFF000000)>>24 | (signature&0x00FF0000)>>8 | (signature&0x0000FF00)<<8 | (signature&0x000000FF)<<24;
+
+    //print_string(&kglobals.console, "\r\n");
+    //print_hex64(&kglobals.console, reverse_signature);
     
     uint32_t entries = (system.xsdt->header.length -sizeof(system.xsdt->header))/8;
     for(uint32_t i = 0; i < entries; i++){
         struct ACPISDTHeader *header = (struct ACPISDTHeader*) (system.xsdt->other_sdt[i] | 0xFFFF800000000000);
-            print_string(&kglobals.console, "\r\n");
-        print_hex64(&kglobals.console, *(uint32_t*)(header->signature));
-        uint8_t res = *(uint32_t*)(header->signature) == signature;
+        //print_string(&kglobals.console, "\r\n");
+        //print_hex64(&kglobals.console, *(uint32_t*)(header->signature));
+        uint8_t res = *(uint32_t*)(header->signature) == reverse_signature;
         
         if(res!=0){
             return header;

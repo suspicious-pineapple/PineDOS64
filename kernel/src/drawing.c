@@ -251,6 +251,12 @@ void print_hex64(console_buffer_t* console, uint64_t number){
         print_hex_byte(console, ((uint8_t*)(&number))[7-i]);
     }
 };
+void print_hex32(console_buffer_t* console, uint32_t number){
+    for(uint8_t i = 0; i < 4; i++){
+        print_hex_byte(console, ((uint8_t*)(&number))[3-i]);
+    }
+};
+
 void print_hex_byte(console_buffer_t* console, uint8_t number){
 
     uint8_t nibbles[16] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
@@ -282,8 +288,13 @@ void hex_dump(console_buffer_t* console, size_t start, size_t length){
         for(size_t j = 0; j < bytes_per_line; j++){
             if(i+j > length){
                 //continue;
-            }
+            };
+            if(*(uint8_t*)(i+j+start) > 31) {
             print_char(console, *(uint8_t*)(i+j+start));
+            } else {
+                print_char(console, 0x127);    
+            }
+
         }
         
         
